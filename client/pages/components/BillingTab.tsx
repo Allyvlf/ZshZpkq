@@ -78,7 +78,7 @@ export const BillingTab = ({ userRole, userData }: BillingTabProps) => {
                       </Badge>
                     </div>
                   </div>
-                  <Button className="w-full mt-4" variant="outline" onClick={() => navigate('/accounts/billing')}>
+                  <Button className="w-full mt-4" variant="outline" onClick={() => navigate('/billing/plans')}>
                     Upgrade Plan
                   </Button>
                 </CardContent>
@@ -142,7 +142,7 @@ export const BillingTab = ({ userRole, userData }: BillingTabProps) => {
                 <Badge className="bg-green-100 text-green-800">Default</Badge>
               </div>
             </div>
-            <Button className="w-full" variant="outline" onClick={() => navigate('/accounts/billing')}>
+            <Button className="w-full" variant="outline" onClick={() => navigate('/billing/payment-methods')}>
               Add Payment Method
             </Button>
           </CardContent>
@@ -184,7 +184,15 @@ export const BillingTab = ({ userRole, userData }: BillingTabProps) => {
                     >
                       {invoice.status}
                     </Badge>
-                    <Button size="sm" variant="ghost" onClick={() => alert('Downloading invoice from ' + invoice.date)}>
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      const invoiceFile = new Blob(['Invoice details...'], { type: 'text/plain' });
+                      const url = window.URL.createObjectURL(invoiceFile);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `invoice-${invoice.date.replace(/\s+/g, '-')}.txt`;
+                      link.click();
+                      window.URL.revokeObjectURL(url);
+                    }}>
                       <Download className="h-4 w-4" />
                     </Button>
                   </div>
@@ -250,7 +258,7 @@ export const BillingTab = ({ userRole, userData }: BillingTabProps) => {
                     </Badge>
                   </div>
                 </div>
-                <Button className="w-full mt-4" variant="outline" onClick={() => navigate('/accounts/billing')}>
+                <Button className="w-full mt-4" variant="outline" onClick={() => navigate('/billing/plans')}>
                   View Plans
                 </Button>
               </CardContent>
@@ -316,7 +324,7 @@ export const BillingTab = ({ userRole, userData }: BillingTabProps) => {
               <Badge className="bg-green-100 text-green-800">Default</Badge>
             </div>
           </div>
-          <Button className="w-full" variant="outline" onClick={() => navigate('/accounts/billing')}>
+          <Button className="w-full" variant="outline" onClick={() => navigate('/billing/payout-methods')}>
             Add Payout Method
           </Button>
         </CardContent>

@@ -22,6 +22,9 @@ import AccountsPage from "./pages/AccountsPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import ConciergePage from "./pages/ConciergePage";
 import OffersPage from "./pages/OffersPage";
+import BillingPlansPage from "./pages/BillingPlansPage";
+import PaymentMethodPage from "./pages/PaymentMethodPage";
+import PayoutMethodPage from "./pages/PayoutMethodPage";
 import NotFound from "./pages/NotFound";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import { Toaster } from "./components/ui/sonner";
@@ -60,6 +63,9 @@ function App() {
               <Route path="/accounts/vendors" element={<AccountsPage />} />
               <Route path="/accounts/quotes" element={<AccountsPage />} />
               <Route path="/accounts/billing" element={<AccountsPage />} />
+              <Route path="/billing/plans" element={<BillingPlansPage />} />
+              <Route path="/billing/payment-methods" element={<PaymentMethodPage />} />
+              <Route path="/billing/payout-methods" element={<PayoutMethodPage />} />
               <Route path="/reviews" element={<ReviewsPage />} />
               <Route path="/concierge" element={<ConciergePage />} />
               <Route path="/offers" element={<OffersPage />} />
