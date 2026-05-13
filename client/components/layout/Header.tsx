@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -46,6 +46,7 @@ const Header = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const location = useLocation();
 
   // Load notifications for current user
@@ -71,7 +72,7 @@ const Header = () => {
         setUnreadCount((data || []).filter((n) => !n.is_read).length);
 
         // Subscribe to real-time notifications
-        const subscription = supabase
+        subscriptionRef.current = supabase
           .channel(`notifications:${user.id}`)
           .on(
             "postgres_changes",
@@ -94,10 +95,6 @@ const Header = () => {
             }
           )
           .subscribe();
-
-        return () => {
-          subscription.unsubscribe();
-        };
       } catch (error) {
         console.error("Error loading notifications:", error);
       } finally {
@@ -105,12 +102,12 @@ const Header = () => {
       }
     };
 
-    const unsubscribe = initNotifications();
+    initNotifications();
 
     return () => {
-      unsubscribe.then((cleanup) => {
-        if (cleanup) cleanup();
-      });
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
     };
   }, []);
 
