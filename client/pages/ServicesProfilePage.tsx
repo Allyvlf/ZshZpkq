@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
+import { BillingTab } from "./components/BillingTab";
 import { supabase } from "../lib/supabase";
 import {
   Card,
@@ -350,7 +351,7 @@ const ServicesProfilePage = () => {
           onValueChange={setActiveTab}
           className="space-y-8"
         >
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7 h-auto p-1">
             <TabsTrigger
               value="dashboard"
               className="flex items-center gap-2 py-3"
@@ -378,6 +379,13 @@ const ServicesProfilePage = () => {
             >
               <Receipt className="h-4 w-4" />
               <span className="hidden sm:inline">{userRole === 'manager' ? 'Reports' : 'Activities'}</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="billing"
+              className="flex items-center gap-2 py-3"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="hidden sm:inline">Billing</span>
             </TabsTrigger>
             <TabsTrigger
               value="preferences"
@@ -1346,6 +1354,11 @@ const ServicesProfilePage = () => {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Billing Tab */}
+          <TabsContent value="billing" className="space-y-6">
+            <BillingTab userRole={userRole} userData={userData} />
           </TabsContent>
 
           {/* Preferences Tab */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -46,14 +46,17 @@ const Header = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const subscriptionRef = useRef<any>(null);
   const location = useLocation();
 
   // Load notifications for current user
   useEffect(() => {
+    let isMounted = true;
+
     const initNotifications = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (!user || !isMounted) {
           setLoading(false);
           return;
         }
@@ -67,11 +70,12 @@ const Header = () => {
 
         if (error) throw error;
 
+        if (!isMounted) return;
         setNotifications(data || []);
         setUnreadCount((data || []).filter((n) => !n.is_read).length);
 
         // Subscribe to real-time notifications
-        const subscription = supabase
+        subscriptionRef.current = supabase
           .channel(`notifications:${user.id}`)
           .on(
             "postgres_changes",
@@ -82,6 +86,7 @@ const Header = () => {
               filter: `user_id=eq.${user.id}`,
             },
             (payload) => {
+              if (!isMounted) return;
               const newNotification = payload.new as Notification;
               setNotifications((prev) => [newNotification, ...prev]);
               setUnreadCount((prev) => prev + 1);
@@ -94,23 +99,25 @@ const Header = () => {
             }
           )
           .subscribe();
-
-        return () => {
-          subscription.unsubscribe();
-        };
       } catch (error) {
         console.error("Error loading notifications:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    const unsubscribe = initNotifications();
+    initNotifications();
 
     return () => {
-      unsubscribe.then((cleanup) => {
-        if (cleanup) cleanup();
-      });
+      isMounted = false;
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
     };
   }, []);
 
