@@ -39,6 +39,7 @@ import {
 import { cn } from "../../lib/utils";
 import { supabase, Notification } from "../../lib/supabase";
 import { toast } from "../../hooks/use-toast";
+import { cacheHomeIdentity, clearCachedHomeIdentity } from "../../lib/homeIdentity";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -59,9 +60,29 @@ const Header = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || !isMounted) {
+          clearCachedHomeIdentity();
           setLoading(false);
           return;
         }
+
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role, first_name, last_name")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        const role = profile?.role === "manager" || profile?.role === "service_provider"
+          ? profile.role
+          : "guest";
+        const displayName = [profile?.first_name, profile?.last_name]
+          .filter((part): part is string => Boolean(part?.trim()))
+          .join(" ") ||
+          (role === "manager"
+            ? "Manager"
+            : role === "service_provider"
+              ? "Service Provider"
+              : "Special Guest");
+        cacheHomeIdentity({ role, displayName });
 
         const { data, error } = await supabase
           .from("notifications")
@@ -138,6 +159,7 @@ const Header = () => {
     setIsAccountOpen(false);
     subscriptionRef.current?.unsubscribe();
     subscriptionRef.current = null;
+    clearCachedHomeIdentity();
     setNotifications([]);
     setUnreadCount(0);
     navigate("/", { replace: true });

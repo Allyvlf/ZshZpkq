@@ -6,6 +6,12 @@ import ServicesFooter from "./components/layout/ServicesFooter";
 import ServicesHomePage from "./pages/ServicesHomePage";
 import HomePage from "./pages/HomePage";
 import { supabase } from "./lib/supabase";
+import {
+  cacheHomeIdentity,
+  getCachedHomeIdentity,
+  clearCachedHomeIdentity,
+  HomeRole,
+} from "./lib/homeIdentity";
 import ServicesProfilePage from "./pages/ServicesProfilePage";
 import BookingPage from "./pages/BookingPage";
 import MenuPage from "./pages/MenuPage";
@@ -33,18 +39,18 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 import { Toaster } from "./components/ui/sonner";
 import "./global.css";
 
-type HomeRole = "guest" | "manager" | "service_provider";
-
 function RoleAwareHomePage() {
-  const [role, setRole] = useState<HomeRole>("guest");
-  const [displayName, setDisplayName] = useState("Special Guest");
-  const [isReady, setIsReady] = useState(false);
+  const cachedIdentity = getCachedHomeIdentity();
+  const [role, setRole] = useState<HomeRole>(cachedIdentity?.role ?? "guest");
+  const [displayName, setDisplayName] = useState(cachedIdentity?.displayName ?? "Special Guest");
+  const [isReady, setIsReady] = useState(Boolean(cachedIdentity));
 
   useEffect(() => {
     let active = true;
 
     const setGuestIdentity = () => {
       if (!active) return;
+      clearCachedHomeIdentity();
       setRole("guest");
       setDisplayName("Special Guest");
       setIsReady(true);
@@ -72,15 +78,16 @@ function RoleAwareHomePage() {
         .filter((part): part is string => Boolean(part?.trim()))
         .join(" ");
 
+      const nextDisplayName = fullName ||
+        (nextRole === "manager"
+          ? "Manager"
+          : nextRole === "service_provider"
+            ? "Service Provider"
+            : "Special Guest");
+
+      cacheHomeIdentity({ role: nextRole, displayName: nextDisplayName });
       setRole(nextRole);
-      setDisplayName(
-        fullName ||
-          (nextRole === "manager"
-            ? "Manager"
-            : nextRole === "service_provider"
-              ? "Service Provider"
-              : "Special Guest"),
-      );
+      setDisplayName(nextDisplayName);
       setIsReady(true);
     };
 
