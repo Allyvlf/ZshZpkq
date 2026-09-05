@@ -62,13 +62,13 @@ const MenuManagementPage = () => {
     loadAccess().catch(() => setAuthorized(false));
   }, []);
 
-  if (authorized === null) {
-    return <div className="min-h-screen" aria-busy="true" />;
-  }
-
   useEffect(() => {
     if (authorized === false) navigate("/menu", { replace: true });
   }, [authorized, navigate]);
+
+  if (authorized === null) {
+    return <div className="min-h-screen" aria-busy="true" />;
+  }
 
   if (!authorized) return null;
 
