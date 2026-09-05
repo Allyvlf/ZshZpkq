@@ -39,13 +39,20 @@ import {
 import { cn } from "../../lib/utils";
 import { supabase, Notification } from "../../lib/supabase";
 import { toast } from "../../hooks/use-toast";
-import { cacheHomeIdentity, clearCachedHomeIdentity } from "../../lib/homeIdentity";
+import {
+  cacheHomeIdentity,
+  clearCachedHomeIdentity,
+  getCachedHomeIdentity,
+} from "../../lib/homeIdentity";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const [canManageMenu, setCanManageMenu] = useState(false);
+  const [canManageMenu, setCanManageMenu] = useState(() => {
+    const cachedRole = getCachedHomeIdentity()?.role;
+    return cachedRole === "manager" || cachedRole === "service_provider";
+  });
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -73,9 +80,12 @@ const Header = () => {
           .eq("user_id", user.id)
           .maybeSingle();
 
+        const cachedRole = getCachedHomeIdentity()?.role;
         const role = profile?.role === "manager" || profile?.role === "service_provider"
           ? profile.role
-          : "guest";
+          : cachedRole === "manager" || cachedRole === "service_provider"
+            ? cachedRole
+            : "guest";
         setCanManageMenu(role === "manager" || role === "service_provider");
         const displayName = [profile?.first_name, profile?.last_name]
           .filter((part): part is string => Boolean(part?.trim()))
@@ -580,6 +590,14 @@ const Header = () => {
                 Staff Portal
               </Button>
             </Link>
+            {canManageMenu && (
+              <Link to="/staff/menu">
+                <Button variant="ghost" size="sm" className="text-xs">
+                  <Utensils className="h-4 w-4 mr-1" />
+                  Menu Management
+                </Button>
+              </Link>
+            )}
             <Link to="/register">
               <Button variant="ghost" size="sm" className="text-xs">
                 Join Special

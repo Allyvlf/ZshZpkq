@@ -9,6 +9,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import { supabase } from "../lib/supabase";
 import { getMenuItems, MenuCategory, MenuItem, saveMenuItems } from "../lib/menuData";
+import { getCachedHomeIdentity } from "../lib/homeIdentity";
 
 const emptyForm = {
   name: "",
@@ -50,7 +51,10 @@ const MenuManagementPage = () => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const canManage = profile?.role === "manager" || profile?.role === "service_provider";
+      const cachedRole = getCachedHomeIdentity()?.role;
+      const canManage = profile?.role === "manager" || profile?.role === "service_provider" ||
+        (!profile?.role &&
+          (cachedRole === "manager" || cachedRole === "service_provider"));
       setAuthorized(canManage);
       if (canManage) setItems(getMenuItems());
     };
