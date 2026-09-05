@@ -336,11 +336,20 @@ const MenuPage = () => {
               {filteredItems.map((item) => {
                 const availability = getAvailabilityStatus(item);
                 const cartQuantity = cart[item.id] || 0;
+                const discountPercent = item.originalPrice > item.price
+                  ? Math.round((1 - item.price / item.originalPrice) * 100)
+                  : 0;
+                const customStatuses = item.statuses || [];
+                const statusLabels = availability.status === "out"
+                  ? ["Sold out", ...customStatuses.filter((status) => status.toLowerCase() !== "available" && status.toLowerCase() !== "sold out")]
+                  : customStatuses.length ? customStatuses : ["Available"];
 
                 return (
                   <Card
                     key={item.id}
-                    className="overflow-hidden hover:shadow-lg transition-shadow"
+                    className={`overflow-hidden hover:shadow-lg transition-shadow ${
+                      availability.status === "out" ? "opacity-80" : ""
+                    }`}
                   >
                     <CardContent className="p-0">
                       <div className="flex">
@@ -354,21 +363,32 @@ const MenuPage = () => {
                                   <h3 className="text-xl font-bold text-sheraton-navy">
                                     {item.name}
                                   </h3>
-                                  {item.trending && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="bg-red-100 text-red-600"
-                                    >
-                                      <TrendingUp className="h-3 w-3 mr-1" />
-                                      Trending
-                                    </Badge>
-                                  )}
-                                  {item.special_offer && (
-                                    <Badge className="bg-sheraton-gold text-sheraton-navy">
-                                      <Gift className="h-3 w-3 mr-1" />
-                                      Special
-                                    </Badge>
-                                  )}
+                                  <div className="flex flex-wrap items-center gap-2 mt-2" aria-label={`${item.name} status`}>
+                                    {statusLabels.map((status) => (
+                                      <Badge
+                                        key={status}
+                                        variant={status.toLowerCase() === "sold out" ? "destructive" : "outline"}
+                                        className={status.toLowerCase() === "available" ? "border-green-600 text-green-700" : ""}
+                                      >
+                                        {status}
+                                      </Badge>
+                                    ))}
+                                    {item.trending && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="bg-red-100 text-red-600"
+                                      >
+                                        <TrendingUp className="h-3 w-3 mr-1" />
+                                        Trending
+                                      </Badge>
+                                    )}
+                                    {item.special_offer && (
+                                      <Badge className="bg-sheraton-gold text-sheraton-navy">
+                                        <Gift className="h-3 w-3 mr-1" />
+                                        Promotion
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="text-muted-foreground mb-2">
                                   {item.description}
@@ -393,17 +413,23 @@ const MenuPage = () => {
                             {/* Price and Availability */}
                             <div className="text-right">
                               <div className="flex items-center gap-2 mb-2">
-                                {item.originalPrice > item.price && (
-                                  <span className="text-sm text-muted-foreground line-through">
-                                    ${item.originalPrice}
+                                {discountPercent > 0 && (
+                                  <span className="text-sm text-muted-foreground line-through" aria-label={`Original price $${item.originalPrice}`}>
+                                    ${item.originalPrice.toFixed(2)}
                                   </span>
                                 )}
-                                <span className="text-2xl font-bold text-sheraton-navy">
-                                  ${item.price}
+                                <span className="text-2xl font-bold text-sheraton-navy" aria-label={`Current price $${item.price}`}>
+                                  ${item.price.toFixed(2)}
                                 </span>
+                                {discountPercent > 0 && (
+                                  <Badge className="bg-red-100 text-red-700">
+                                    {discountPercent}% off
+                                  </Badge>
+                                )}
                               </div>
                               <div
                                 className={`text-sm font-medium ${availability.color}`}
+                                aria-label={`Availability: ${availability.message}`}
                               >
                                 {availability.message}
                               </div>

@@ -22,6 +22,7 @@ export interface MenuItem {
   chef_note: string;
   trending: boolean;
   special_offer: string | null;
+  statuses?: string[];
   approved: boolean;
 }
 

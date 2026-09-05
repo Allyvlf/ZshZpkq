@@ -16,6 +16,7 @@ const emptyForm = {
   description: "",
   description_full: "",
   price: "",
+  originalPrice: "",
   category: "mains" as MenuCategory,
   image: "🍽️",
   cookTime: "15-20 min",
@@ -26,6 +27,8 @@ const emptyForm = {
   origin: "",
   chef_note: "",
   special_offer: "",
+  statuses: "",
+  trending: false,
 };
 
 type FormState = typeof emptyForm;
@@ -88,6 +91,7 @@ const MenuManagementPage = () => {
       description: item.description,
       description_full: item.description_full,
       price: String(item.price),
+      originalPrice: String(item.originalPrice),
       category: item.category,
       image: item.image,
       cookTime: item.cookTime,
@@ -98,6 +102,8 @@ const MenuManagementPage = () => {
       origin: item.origin,
       chef_note: item.chef_note,
       special_offer: item.special_offer || "",
+      statuses: item.statuses?.join(", ") || "",
+      trending: item.trending,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -105,6 +111,7 @@ const MenuManagementPage = () => {
   const saveItem = (event: React.FormEvent) => {
     event.preventDefault();
     const price = Number(form.price);
+    const originalPrice = Number(form.originalPrice) || price;
     const availability = Number(form.availability);
     const maxAvailability = Number(form.maxAvailability);
 
@@ -116,7 +123,7 @@ const MenuManagementPage = () => {
       description: form.description.trim(),
       description_full: form.description_full.trim() || form.description.trim(),
       price,
-      originalPrice: price,
+      originalPrice: Math.max(price, originalPrice),
       category: form.category,
       image: form.image || "🍽️",
       cookTime: form.cookTime,
@@ -129,9 +136,10 @@ const MenuManagementPage = () => {
       origin: form.origin.trim() || "Sheraton Kitchen",
       calories: Number(form.calories) || 0,
       chef_note: form.chef_note.trim(),
-      trending: false,
       special_offer: form.special_offer.trim() || null,
+      statuses: form.statuses.split(",").map((value) => value.trim()).filter(Boolean),
       approved: true,
+      trending: form.trending,
     };
 
     const nextItems = editingId
@@ -185,7 +193,8 @@ const MenuManagementPage = () => {
           <CardContent>
             <form onSubmit={saveItem} className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2"><Label htmlFor="name">Dish name *</Label><Input id="name" value={form.name} onChange={(e) => updateField("name", e.target.value)} required /></div>
-              <div className="space-y-2"><Label htmlFor="price">Price *</Label><Input id="price" type="number" min="0.01" step="0.01" value={form.price} onChange={(e) => updateField("price", e.target.value)} required /></div>
+              <div className="space-y-2"><Label htmlFor="price">Current price *</Label><Input id="price" type="number" min="0.01" step="0.01" value={form.price} onChange={(e) => updateField("price", e.target.value)} required /></div>
+              <div className="space-y-2"><Label htmlFor="originalPrice">Original price</Label><Input id="originalPrice" type="number" min="0.01" step="0.01" placeholder="Use for discounts" value={form.originalPrice} onChange={(e) => updateField("originalPrice", e.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="description">Short description *</Label><Input id="description" value={form.description} onChange={(e) => updateField("description", e.target.value)} required /></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="description_full">Full description</Label><Textarea id="description_full" value={form.description_full} onChange={(e) => updateField("description_full", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="category">Category</Label><select id="category" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.category} onChange={(e) => updateField("category", e.target.value)}><option value="appetizers">Appetizers</option><option value="mains">Main Courses</option><option value="desserts">Desserts</option><option value="beverages">Beverages</option><option value="special">Special Offers</option></select></div>
@@ -197,7 +206,9 @@ const MenuManagementPage = () => {
               <div className="space-y-2"><Label htmlFor="availability">Available portions</Label><Input id="availability" type="number" min="0" value={form.availability} onChange={(e) => updateField("availability", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="maxAvailability">Maximum portions *</Label><Input id="maxAvailability" type="number" min="1" value={form.maxAvailability} onChange={(e) => updateField("maxAvailability", e.target.value)} required /></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="chef_note">Chef note</Label><Input id="chef_note" value={form.chef_note} onChange={(e) => updateField("chef_note", e.target.value)} /></div>
-              <div className="space-y-2 md:col-span-2"><Label htmlFor="special_offer">Special offer</Label><Input id="special_offer" placeholder="Optional promotion shown with the dish" value={form.special_offer} onChange={(e) => updateField("special_offer", e.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="statuses">Status labels</Label><Input id="statuses" placeholder="Available, Chef's Pick" value={form.statuses} onChange={(e) => updateField("statuses", e.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="special_offer">Promotion label</Label><Input id="special_offer" placeholder="20% off, Happy Hour" value={form.special_offer} onChange={(e) => updateField("special_offer", e.target.value)} /></div>
+              <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={form.trending} onChange={(e) => setForm((current) => ({ ...current, trending: e.target.checked }))} /> Mark this dish as Trending</label>
               <div className="md:col-span-2 flex gap-3"><Button type="submit">{editingId ? "Save Changes" : "Publish Dish"}</Button>{editingId && <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>}</div>
             </form>
           </CardContent>
