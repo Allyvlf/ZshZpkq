@@ -360,24 +360,7 @@ const MenuPage = () => {
                         <div className="flex-1 p-6">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-4">
-                              {item.mediaUrl ? (
-                                item.mediaType === "video" ? (
-                                  <video
-                                    src={item.mediaUrl}
-                                    controls
-                                    className="h-24 w-24 rounded-lg object-cover"
-                                    aria-label={`${item.name} video`}
-                                  />
-                                ) : (
-                                  <img
-                                    src={item.mediaUrl}
-                                    alt={`${item.name} dish`}
-                                    className="h-24 w-24 rounded-lg object-cover"
-                                  />
-                                )
-                              ) : (
-                                <div className="text-5xl" aria-hidden="true">{item.image}</div>
-                              )}
+                              <div className="text-5xl" aria-hidden="true">{item.image}</div>
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
                                   <h3 className="text-xl font-bold text-sheraton-navy">
@@ -473,6 +456,29 @@ const MenuPage = () => {
                               </div>
                             )}
                           </div>
+
+                          {/* Dish media */}
+                          {item.mediaUrl && (
+                            <div className="mb-4 flex flex-col items-center gap-2 rounded-lg border border-border/60 bg-white p-3">
+                              {item.mediaType === "video" ? (
+                                <video
+                                  src={item.mediaUrl}
+                                  controls
+                                  className="max-h-64 w-full max-w-xl rounded-md object-contain"
+                                  aria-label={`${item.name} video`}
+                                />
+                              ) : (
+                                <img
+                                  src={item.mediaUrl}
+                                  alt={`${item.name} dish`}
+                                  className="max-h-64 w-full max-w-xl rounded-md object-contain"
+                                />
+                              )}
+                              <Badge variant="outline" className="gap-1 text-xs">
+                                {item.mediaType === "video" ? "Video" : "Image"}
+                              </Badge>
+                            </div>
+                          )}
 
                           {/* Tags and Dietary Info */}
                           <div className="flex items-center gap-2 mb-4">
