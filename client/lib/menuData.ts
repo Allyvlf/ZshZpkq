@@ -6,6 +6,8 @@ export interface MenuItem {
   name: string;
   description: string;
   currency?: string;
+  mediaType?: "image" | "video";
+  mediaUrl?: string;
   price: number;
   originalPrice: number;
   category: MenuCategory;
