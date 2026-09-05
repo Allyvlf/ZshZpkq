@@ -158,6 +158,9 @@ const MenuPage = () => {
     return { status: "good", color: "text-green-500", message: "Available" };
   };
 
+  const formatPrice = (amount: number, currency = "USD") =>
+    new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+
   const getCurrentOffer = () => {
     const hour = currentTime.getHours();
     if (hour >= 11 && hour < 15) {
@@ -415,11 +418,11 @@ const MenuPage = () => {
                               <div className="flex items-center gap-2 mb-2">
                                 {discountPercent > 0 && (
                                   <span className="text-sm text-muted-foreground line-through" aria-label={`Original price $${item.originalPrice}`}>
-                                    ${item.originalPrice.toFixed(2)}
+                                    {formatPrice(item.originalPrice, item.currency)}
                                   </span>
                                 )}
                                 <span className="text-2xl font-bold text-sheraton-navy" aria-label={`Current price $${item.price}`}>
-                                  ${item.price.toFixed(2)}
+                                  {formatPrice(item.price, item.currency)}
                                 </span>
                                 {discountPercent > 0 && (
                                   <Badge className="bg-red-100 text-red-700">

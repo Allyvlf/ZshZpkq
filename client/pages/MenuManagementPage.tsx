@@ -15,6 +15,7 @@ const emptyForm = {
   name: "",
   description: "",
   description_full: "",
+  currency: "USD",
   price: "",
   originalPrice: "",
   category: "mains" as MenuCategory,
@@ -90,6 +91,7 @@ const MenuManagementPage = () => {
       name: item.name,
       description: item.description,
       description_full: item.description_full,
+      currency: item.currency || "USD",
       price: String(item.price),
       originalPrice: String(item.originalPrice),
       category: item.category,
@@ -122,6 +124,7 @@ const MenuManagementPage = () => {
       name: form.name.trim(),
       description: form.description.trim(),
       description_full: form.description_full.trim() || form.description.trim(),
+      currency: form.currency,
       price,
       originalPrice: Math.max(price, originalPrice),
       category: form.category,
@@ -192,13 +195,14 @@ const MenuManagementPage = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={saveItem} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-2"><Label htmlFor="name">Dish name *</Label><Input id="name" value={form.name} onChange={(e) => updateField("name", e.target.value)} required /></div>
+              <div className="space-y-2 md:col-span-2"><Label htmlFor="name">Dish name *</Label><Input id="name" value={form.name} onChange={(e) => updateField("name", e.target.value)} required /></div>
+              <div className="space-y-2 md:col-span-2"><Label htmlFor="currency">Currency</Label><select id="currency" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.currency} onChange={(e) => updateField("currency", e.target.value)}><option value="USD">USD — US Dollar ($)</option><option value="EUR">EUR — Euro (€)</option><option value="GBP">GBP — British Pound (£)</option><option value="CAD">CAD — Canadian Dollar ($)</option><option value="AUD">AUD — Australian Dollar ($)</option><option value="JPY">JPY — Japanese Yen (¥)</option><option value="CHF">CHF — Swiss Franc</option><option value="CNY">CNY — Chinese Yuan (¥)</option><option value="INR">INR — Indian Rupee (₹)</option><option value="ZAR">ZAR — South African Rand</option><option value="AED">AED — UAE Dirham</option><option value="SGD">SGD — Singapore Dollar</option></select></div>
               <div className="space-y-2"><Label htmlFor="price">Current price *</Label><Input id="price" type="number" min="0.01" step="0.01" value={form.price} onChange={(e) => updateField("price", e.target.value)} required /></div>
               <div className="space-y-2"><Label htmlFor="originalPrice">Original price</Label><Input id="originalPrice" type="number" min="0.01" step="0.01" placeholder="Use for discounts" value={form.originalPrice} onChange={(e) => updateField("originalPrice", e.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="description">Short description *</Label><Input id="description" value={form.description} onChange={(e) => updateField("description", e.target.value)} required /></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="description_full">Full description</Label><Textarea id="description_full" value={form.description_full} onChange={(e) => updateField("description_full", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="category">Category</Label><select id="category" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.category} onChange={(e) => updateField("category", e.target.value)}><option value="appetizers">Appetizers</option><option value="mains">Main Courses</option><option value="desserts">Desserts</option><option value="beverages">Beverages</option><option value="special">Special Offers</option></select></div>
-              <div className="space-y-2"><Label htmlFor="image">Menu icon / emoji</Label><Input id="image" value={form.image} onChange={(e) => updateField("image", e.target.value)} maxLength={4} /></div>
+              <div className="space-y-2"><Label htmlFor="image">Dish icon</Label><select id="image" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.image} onChange={(e) => updateField("image", e.target.value)}><option value="🍽️">🍽️ General dish</option><option value="🍝">🍝 Pasta</option><option value="🥩">🥩 Steak</option><option value="🦞">🦞 Seafood</option><option value="🍲">🍲 Soup</option><option value="🍕">🍕 Pizza</option><option value="🥗">🥗 Salad</option><option value="🍔">🍔 Burger</option><option value="🍰">🍰 Dessert</option><option value="🍫">🍫 Chocolate</option><option value="🍸">🍸 Cocktail</option><option value="🍉">🍉 Fruit</option><option value="☕">☕ Coffee</option></select></div>
               <div className="space-y-2"><Label htmlFor="cookTime">Preparation time</Label><Input id="cookTime" value={form.cookTime} onChange={(e) => updateField("cookTime", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="origin">Origin</Label><Input id="origin" value={form.origin} onChange={(e) => updateField("origin", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="dietary">Dietary tags</Label><Input id="dietary" placeholder="vegetarian, gluten-free" value={form.dietary} onChange={(e) => updateField("dietary", e.target.value)} /></div>
@@ -219,7 +223,7 @@ const MenuManagementPage = () => {
           <CardContent className="space-y-3">
             {items.map((item) => (
               <div key={item.id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3"><span className="text-3xl">{item.image}</span><div><p className="font-semibold">{item.name}</p><p className="text-sm text-muted-foreground">{item.category} · ${item.price.toFixed(2)} · {item.availability}/{item.maxAvailability} available</p></div></div>
+                <div className="flex items-center gap-3"><span className="text-3xl">{item.image}</span><div><p className="font-semibold">{item.name}</p><p className="text-sm text-muted-foreground">{item.category} · {item.currency || "USD"} {item.price.toFixed(2)} · {item.availability}/{item.maxAvailability} available</p></div></div>
                 <div className="flex items-center gap-2"><Badge variant={item.approved ? "default" : "outline"}>{item.approved ? "Published" : "Hidden"}</Badge><Button size="sm" variant="outline" onClick={() => editItem(item)}><Edit2 className="h-4 w-4 mr-1" /> Edit</Button><Button size="sm" variant="outline" onClick={() => toggleVisibility(item.id)}>{item.approved ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}{item.approved ? "Hide" : "Publish"}</Button><Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeItem(item.id)}><Trash2 className="h-4 w-4" /></Button></div>
               </div>
             ))}

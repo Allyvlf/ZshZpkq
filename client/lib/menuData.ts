@@ -5,6 +5,7 @@ export interface MenuItem {
   id: string;
   name: string;
   description: string;
+  currency?: string;
   price: number;
   originalPrice: number;
   category: MenuCategory;
