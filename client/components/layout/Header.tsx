@@ -45,6 +45,7 @@ const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [canManageMenu, setCanManageMenu] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -61,6 +62,7 @@ const Header = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || !isMounted) {
           clearCachedHomeIdentity();
+          setCanManageMenu(false);
           setLoading(false);
           return;
         }
@@ -74,6 +76,7 @@ const Header = () => {
         const role = profile?.role === "manager" || profile?.role === "service_provider"
           ? profile.role
           : "guest";
+        setCanManageMenu(role === "manager" || role === "service_provider");
         const displayName = [profile?.first_name, profile?.last_name]
           .filter((part): part is string => Boolean(part?.trim()))
           .join(" ") ||
@@ -287,6 +290,12 @@ const Header = () => {
           icon: Bell,
           description: "Communicate about tasks",
         },
+        {
+          title: "Menu Management",
+          href: "/staff/menu",
+          icon: Utensils,
+          description: "Create and publish digital menu dishes",
+        },
       ],
     },
     {
@@ -387,7 +396,9 @@ const Header = () => {
                           </Link>
                         </NavigationMenuLink>
                       </li>
-                      {section.items.map((item) => (
+                      {section.items
+                        .filter((item) => item.title !== "Menu Management" || canManageMenu)
+                        .map((item) => (
                         <li key={item.title}>
                           <NavigationMenuLink asChild>
                             <Link
@@ -448,6 +459,7 @@ const Header = () => {
             <nav className="flex flex-col space-y-3 mt-6">
               {[...guestNavItems, ...staffNavItems]
                 .flatMap((section) => section.items)
+                .filter((item) => item.title !== "Menu Management" || canManageMenu)
                 .map((item) => (
                   <Link
                     key={item.href}
