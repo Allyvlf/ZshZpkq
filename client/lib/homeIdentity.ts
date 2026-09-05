@@ -9,7 +9,7 @@ const HOME_IDENTITY_KEY = "sheraton-home-identity";
 
 export const getCachedHomeIdentity = (): HomeIdentity | null => {
   try {
-    const cached = sessionStorage.getItem(HOME_IDENTITY_KEY);
+    const cached = localStorage.getItem(HOME_IDENTITY_KEY);
     if (!cached) return null;
 
     const identity = JSON.parse(cached) as HomeIdentity;
@@ -21,9 +21,9 @@ export const getCachedHomeIdentity = (): HomeIdentity | null => {
 };
 
 export const cacheHomeIdentity = (identity: HomeIdentity) => {
-  sessionStorage.setItem(HOME_IDENTITY_KEY, JSON.stringify(identity));
+  localStorage.setItem(HOME_IDENTITY_KEY, JSON.stringify(identity));
 };
 
 export const clearCachedHomeIdentity = () => {
-  sessionStorage.removeItem(HOME_IDENTITY_KEY);
+  localStorage.removeItem(HOME_IDENTITY_KEY);
 };
