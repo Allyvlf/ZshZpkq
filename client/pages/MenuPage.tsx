@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import CheckoutModal from "../components/checkout/CheckoutModal";
-import { getMenuItems } from "../lib/menuData";
+import { getMenuItems, menuItemFromDatabaseRow } from "../lib/menuData";
+import { supabase } from "../lib/supabase";
 import {
   Card,
   CardContent,
@@ -84,6 +85,18 @@ const MenuPage = () => {
   useEffect(() => {
     const refreshMenu = () => setMenuItems(getMenuItems().filter((item) => item.approved));
     window.addEventListener("storage", refreshMenu);
+
+    supabase
+      .from("menu_items")
+      .select("*")
+      .eq("is_published", true)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (!data) return;
+        const databaseItems = data.map(menuItemFromDatabaseRow);
+        setMenuItems([...getMenuItems().filter((item) => item.approved), ...databaseItems]);
+      });
+
     return () => window.removeEventListener("storage", refreshMenu);
   }, []);
 

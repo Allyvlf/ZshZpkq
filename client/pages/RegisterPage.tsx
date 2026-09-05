@@ -37,6 +37,7 @@ const RegisterPage: React.FC = () => {
     // Service Provider Fields
     serviceType: "",
     serviceCategory: "" as "internal" | "external" | "",
+    menuAccessRole: "none" as "none" | "chef" | "food_beverage_manager",
     // Personal Information
     firstName: "",
     lastName: "",
@@ -184,6 +185,7 @@ const RegisterPage: React.FC = () => {
       if (formData.role === "service_provider") {
         profileData.service_type = formData.serviceType;
         profileData.service_category = formData.serviceCategory;
+        profileData.menu_access_role = formData.menuAccessRole;
       }
 
       // Try to insert the profile, or update if it already exists
@@ -350,6 +352,27 @@ const RegisterPage: React.FC = () => {
             {errors.serviceCategory && (
               <p className="text-red-500 text-sm">{errors.serviceCategory}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Menu Management Access</label>
+            <select
+              value={formData.menuAccessRole}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  menuAccessRole: e.target.value as "none" | "chef" | "food_beverage_manager",
+                }))
+              }
+              className="w-full px-3 py-2 border rounded-md border-gray-300"
+            >
+              <option value="none">No menu management access</option>
+              <option value="chef">Chef / Culinary Staff</option>
+              <option value="food_beverage_manager">Food & Beverage Manager</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Only designated culinary or food-service staff can publish and manage dishes.
+            </p>
           </div>
         </div>
       )}

@@ -8,8 +8,9 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import { supabase } from "../lib/supabase";
-import { getMenuItems, MenuCategory, MenuItem, saveMenuItems } from "../lib/menuData";
+import { getMenuItems, menuItemFromDatabaseRow, MenuCategory, MenuItem, saveMenuItems } from "../lib/menuData";
 import { getCachedHomeIdentity } from "../lib/homeIdentity";
+import { useFileUpload } from "../hooks/useFileUpload";
 
 const emptyForm = {
   name: "",
@@ -18,6 +19,7 @@ const emptyForm = {
   currency: "USD",
   mediaType: "image" as "image" | "video",
   mediaUrl: "",
+  mediaAttachmentId: "",
   price: "",
   originalPrice: "",
   category: "mains" as MenuCategory,
@@ -42,6 +44,7 @@ const MenuManagementPage = () => {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { uploadFile, isUploading } = useFileUpload();
 
   useEffect(() => {
     const loadAccess = async () => {
@@ -53,16 +56,26 @@ const MenuManagementPage = () => {
 
       const { data: profile } = await supabase
         .from("user_profiles")
-        .select("role")
+        .select("role, menu_access_role, menu_access_approved")
         .eq("user_id", user.id)
         .maybeSingle();
 
       const cachedRole = getCachedHomeIdentity()?.role;
-      const canManage = profile?.role === "manager" || profile?.role === "service_provider" ||
-        (!profile?.role &&
-          (cachedRole === "manager" || cachedRole === "service_provider"));
+      const canManage = profile?.role === "manager" ||
+        (profile?.role === "service_provider" &&
+          profile.menu_access_approved === true &&
+          (profile.menu_access_role === "chef" || profile.menu_access_role === "food_beverage_manager")) ||
+        (!profile?.role && cachedRole === "manager");
       setAuthorized(canManage);
-      if (canManage) setItems(getMenuItems());
+      if (canManage) {
+        const localItems = getMenuItems();
+        const { data: databaseItems } = await supabase
+          .from("menu_items")
+          .select("*")
+          .order("created_at", { ascending: true });
+        const savedItems = (databaseItems || []).map(menuItemFromDatabaseRow);
+        setItems([...localItems, ...savedItems]);
+      }
     };
 
     loadAccess().catch(() => setAuthorized(false));
@@ -82,15 +95,16 @@ const MenuManagementPage = () => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleMediaFile = (file?: File) => {
+  const handleMediaFile = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm((current) => ({
+    const uploaded = await uploadFile(file, "menu-items");
+    if (!uploaded) return;
+    setForm((current) => ({
       ...current,
-      mediaType: file.type.startsWith("video/") ? "video" : "image",
-      mediaUrl: String(reader.result),
+      mediaType: uploaded.fileType === "video" ? "video" : "image",
+      mediaUrl: uploaded.publicUrl,
+      mediaAttachmentId: uploaded.attachmentId,
     }));
-    reader.readAsDataURL(file);
   };
 
   const resetForm = () => {
@@ -107,6 +121,7 @@ const MenuManagementPage = () => {
       currency: item.currency || "USD",
       mediaType: item.mediaType || "image",
       mediaUrl: item.mediaUrl || "",
+      mediaAttachmentId: item.mediaAttachmentId || "",
       price: String(item.price),
       originalPrice: String(item.originalPrice),
       category: item.category,
@@ -125,7 +140,7 @@ const MenuManagementPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const saveItem = (event: React.FormEvent) => {
+  const saveItem = async (event: React.FormEvent) => {
     event.preventDefault();
     const price = Number(form.price);
     const originalPrice = Number(form.originalPrice) || price;
@@ -136,12 +151,14 @@ const MenuManagementPage = () => {
 
     const nextItem: MenuItem = {
       id: editingId || `${form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+      databaseId: editingId ? items.find((item) => item.id === editingId)?.databaseId : undefined,
       name: form.name.trim(),
       description: form.description.trim(),
       description_full: form.description_full.trim() || form.description.trim(),
       currency: form.currency,
       mediaType: form.mediaUrl ? form.mediaType : undefined,
       mediaUrl: form.mediaUrl || undefined,
+      mediaAttachmentId: form.mediaAttachmentId || undefined,
       price,
       originalPrice: Math.max(price, originalPrice),
       category: form.category,
@@ -168,25 +185,71 @@ const MenuManagementPage = () => {
 
     setItems(nextItems);
     saveMenuItems(nextItems);
+
+    const databasePayload = {
+      name: nextItem.name,
+      short_description: nextItem.description,
+      full_description: nextItem.description_full,
+      currency: nextItem.currency || "USD",
+      icon: nextItem.image,
+      category: nextItem.category,
+      price: nextItem.price,
+      original_price: nextItem.originalPrice,
+      preparation_time: nextItem.cookTime,
+      origin: nextItem.origin,
+      calories: nextItem.calories,
+      dietary_tags: nextItem.dietary,
+      spice_level: nextItem.spiceLevel,
+      availability: nextItem.availability,
+      max_availability: nextItem.maxAvailability,
+      chef_note: nextItem.chef_note,
+      special_offer: nextItem.special_offer,
+      status_labels: nextItem.statuses || [],
+      is_trending: nextItem.trending,
+      is_published: nextItem.approved,
+      media_type: nextItem.mediaType || null,
+      media_url: nextItem.mediaUrl || null,
+      media_attachment_id: nextItem.mediaAttachmentId || null,
+      managed_by: (await supabase.auth.getUser()).data.user?.id,
+    };
+
+    const databaseQuery = nextItem.databaseId
+      ? supabase.from("menu_items").update(databasePayload).eq("id", nextItem.databaseId)
+      : supabase.from("menu_items").insert(databasePayload);
+    const { error: databaseError } = await databaseQuery;
+    if (databaseError) console.error("Unable to save menu item to Supabase", databaseError);
+
     resetForm();
   };
 
-  const toggleTrending = (id: string) => {
-    const nextItems = items.map((item) => item.id === id ? { ...item, trending: !item.trending } : item);
+  const toggleTrending = async (id: string) => {
+    const item = items.find((entry) => entry.id === id);
+    const nextItems = items.map((entry) => entry.id === id ? { ...entry, trending: !entry.trending } : entry);
     setItems(nextItems);
     saveMenuItems(nextItems);
+    if (item?.databaseId) {
+      await supabase.from("menu_items").update({ is_trending: !item.trending }).eq("id", item.databaseId);
+    }
   };
 
-  const toggleVisibility = (id: string) => {
-    const nextItems = items.map((item) => item.id === id ? { ...item, approved: !item.approved } : item);
+  const toggleVisibility = async (id: string) => {
+    const item = items.find((entry) => entry.id === id);
+    const nextItems = items.map((entry) => entry.id === id ? { ...entry, approved: !entry.approved } : entry);
     setItems(nextItems);
     saveMenuItems(nextItems);
+    if (item?.databaseId) {
+      await supabase.from("menu_items").update({ is_published: !item.approved }).eq("id", item.databaseId);
+    }
   };
 
-  const removeItem = (id: string) => {
-    const nextItems = items.filter((item) => item.id !== id);
+  const removeItem = async (id: string) => {
+    const item = items.find((entry) => entry.id === id);
+    const nextItems = items.filter((entry) => entry.id !== id);
     setItems(nextItems);
     saveMenuItems(nextItems);
+    if (item?.databaseId) {
+      await supabase.from("menu_items").delete().eq("id", item.databaseId);
+    }
     if (editingId === id) resetForm();
   };
 
@@ -224,7 +287,7 @@ const MenuManagementPage = () => {
               <div className="space-y-2"><Label htmlFor="price">Current price *</Label><Input id="price" type="number" min="0.01" step="0.01" value={form.price} onChange={(e) => updateField("price", e.target.value)} required /></div>
               <div className="space-y-2"><Label htmlFor="originalPrice">Original price</Label><Input id="originalPrice" type="number" min="0.01" step="0.01" placeholder="Use for discounts" value={form.originalPrice} onChange={(e) => updateField("originalPrice", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="cookTime">Preparation time</Label><Input id="cookTime" value={form.cookTime} onChange={(e) => updateField("cookTime", e.target.value)} /></div>
-              <div className="space-y-2 md:col-span-2"><Label>Dish media</Label><div className="flex flex-wrap gap-3"><label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-accent"><Upload className="h-4 w-4" /> Upload image/video<input className="sr-only" type="file" accept="image/*,video/*" onChange={(e) => handleMediaFile(e.target.files?.[0])} /></label><label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-accent"><Camera className="h-4 w-4" /> Take photo<input className="sr-only" type="file" accept="image/*" capture="environment" onChange={(e) => handleMediaFile(e.target.files?.[0])} /></label><label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-accent"><Video className="h-4 w-4" /> Record video<input className="sr-only" type="file" accept="video/*" capture="environment" onChange={(e) => handleMediaFile(e.target.files?.[0])} /></label></div>{form.mediaUrl && <div className="relative mt-3 w-fit"><div className="flex items-center gap-2 rounded-md border p-2">{form.mediaType === "video" ? <video src={form.mediaUrl} className="h-24 w-32 rounded object-cover" muted /> : <img src={form.mediaUrl} alt="Dish preview" className="h-24 w-32 rounded object-cover" />}<Badge variant="outline">{form.mediaType === "video" ? "Video" : "Image"}</Badge><Button type="button" size="icon" variant="ghost" className="text-destructive" aria-label="Remove selected media" onClick={() => setForm((current) => ({ ...current, mediaUrl: "", mediaType: "image" }))}><X className="h-4 w-4" /></Button></div></div>}</div>
+              <div className="space-y-2 md:col-span-2"><Label>Dish media</Label><div className="flex flex-wrap gap-3"><label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-accent"><Upload className="h-4 w-4" /> {isUploading ? "Uploading..." : "Upload image/video"}<input className="sr-only" type="file" accept="image/*,video/*" onChange={(e) => handleMediaFile(e.target.files?.[0])} /></label><label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-accent"><Camera className="h-4 w-4" /> Take photo<input className="sr-only" type="file" accept="image/*" capture="environment" onChange={(e) => handleMediaFile(e.target.files?.[0])} /></label><label className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-accent"><Video className="h-4 w-4" /> Record video<input className="sr-only" type="file" accept="video/*" capture="environment" onChange={(e) => handleMediaFile(e.target.files?.[0])} /></label></div>{form.mediaUrl && <div className="relative mt-3 w-fit"><div className="flex items-center gap-2 rounded-md border p-2">{form.mediaType === "video" ? <video src={form.mediaUrl} className="h-24 w-32 rounded object-cover" muted /> : <img src={form.mediaUrl} alt="Dish preview" className="h-24 w-32 rounded object-cover" />}<Badge variant="outline">{form.mediaType === "video" ? "Video" : "Image"}</Badge><Button type="button" size="icon" variant="ghost" className="text-destructive" aria-label="Remove selected media" onClick={() => setForm((current) => ({ ...current, mediaUrl: "", mediaType: "image" }))}><X className="h-4 w-4" /></Button></div></div>}</div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="description">Short description *</Label><Input id="description" value={form.description} onChange={(e) => updateField("description", e.target.value)} required /></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="description_full">Full description</Label><Textarea id="description_full" value={form.description_full} onChange={(e) => updateField("description_full", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="category">Category</Label><select id="category" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={form.category} onChange={(e) => updateField("category", e.target.value)}><option value="appetizers">Appetizers</option><option value="mains">Main Courses</option><option value="desserts">Desserts</option><option value="beverages">Beverages</option><option value="special">Special Offers</option></select></div>

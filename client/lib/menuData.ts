@@ -3,11 +3,13 @@ export type MenuDifficulty = "low" | "medium" | "high";
 
 export interface MenuItem {
   id: string;
+  databaseId?: string;
   name: string;
   description: string;
   currency?: string;
   mediaType?: "image" | "video";
   mediaUrl?: string;
+  mediaAttachmentId?: string;
   price: number;
   originalPrice: number;
   category: MenuCategory;
@@ -148,6 +150,36 @@ export const defaultMenuItems: MenuItem[] = [
 ];
 
 const MENU_STORAGE_KEY = "sheraton-menu-items";
+
+export const menuItemFromDatabaseRow = (row: any): MenuItem => ({
+  id: row.id,
+  databaseId: row.id,
+  name: row.name,
+  description: row.short_description || "",
+  description_full: row.full_description || row.short_description || "",
+  currency: row.currency || "USD",
+  mediaType: row.media_type || undefined,
+  mediaUrl: row.media_url || undefined,
+  mediaAttachmentId: row.media_attachment_id || undefined,
+  price: Number(row.price),
+  originalPrice: Number(row.original_price || row.price),
+  category: row.category,
+  image: row.icon || "🍽️",
+  cookTime: row.preparation_time || "",
+  difficulty: row.difficulty || "medium",
+  availability: Number(row.availability || 0),
+  maxAvailability: Number(row.max_availability || 0),
+  dietary: row.dietary_tags || [],
+  spiceLevel: Number(row.spice_level || 0),
+  popularity: Number(row.popularity || 0),
+  origin: row.origin || "",
+  calories: Number(row.calories || 0),
+  chef_note: row.chef_note || "",
+  trending: Boolean(row.is_trending),
+  special_offer: row.special_offer || null,
+  statuses: row.status_labels || [],
+  approved: row.is_published !== false,
+});
 
 export const getMenuItems = (): MenuItem[] => {
   try {

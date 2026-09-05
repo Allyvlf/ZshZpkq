@@ -50,8 +50,7 @@ const Header = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [canManageMenu, setCanManageMenu] = useState(() => {
-    const cachedRole = getCachedHomeIdentity()?.role;
-    return cachedRole === "manager" || cachedRole === "service_provider";
+    return getCachedHomeIdentity()?.role === "manager";
   });
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -76,7 +75,7 @@ const Header = () => {
 
         const { data: profile } = await supabase
           .from("user_profiles")
-          .select("role, first_name, last_name")
+          .select("role, first_name, last_name, menu_access_role, menu_access_approved")
           .eq("user_id", user.id)
           .maybeSingle();
 
@@ -86,7 +85,11 @@ const Header = () => {
           : cachedRole === "manager" || cachedRole === "service_provider"
             ? cachedRole
             : "guest";
-        setCanManageMenu(role === "manager" || role === "service_provider");
+        const canManage = role === "manager" ||
+          (role === "service_provider" &&
+            profile?.menu_access_approved === true &&
+            (profile?.menu_access_role === "chef" || profile?.menu_access_role === "food_beverage_manager"));
+        setCanManageMenu(canManage);
         const displayName = [profile?.first_name, profile?.last_name]
           .filter((part): part is string => Boolean(part?.trim()))
           .join(" ") ||
