@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import {
@@ -43,11 +43,13 @@ import { toast } from "../../hooks/use-toast";
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const subscriptionRef = useRef<any>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Load notifications for current user
   useEffect(() => {
@@ -120,6 +122,26 @@ const Header = () => {
       }
     };
   }, []);
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      toast({
+        title: "Unable to sign out",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAccountOpen(false);
+    subscriptionRef.current?.unsubscribe();
+    subscriptionRef.current = null;
+    setNotifications([]);
+    setUnreadCount(0);
+    navigate("/", { replace: true });
+  };
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -529,22 +551,42 @@ const Header = () => {
                 Join Special
               </Button>
             </Link>
-            <Link to="/profile">
-              <Button
-                variant="outline"
-                size="sm"
-                className="sheraton-gradient text-white border-0"
-              >
-                <User className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">My Account</span>
-                <Badge
-                  variant="secondary"
-                  className="ml-2 bg-white/20 text-white"
+            <Popover open={isAccountOpen} onOpenChange={setIsAccountOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="sheraton-gradient text-white border-0"
                 >
-                  1,250 pts
-                </Badge>
-              </Button>
-            </Link>
+                  <User className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">My Account</span>
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 bg-white/20 text-white"
+                  >
+                    1,250 pts
+                  </Badge>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52" align="end">
+                <div className="space-y-2">
+                  <Link
+                    to="/profile"
+                    className="block rounded-md px-3 py-2 text-sm hover:bg-accent"
+                    onClick={() => setIsAccountOpen(false)}
+                  >
+                    My Account
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start px-3 text-sm"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </nav>
         </div>
       </div>

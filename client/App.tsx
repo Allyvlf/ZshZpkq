@@ -38,13 +38,23 @@ type HomeRole = "guest" | "manager" | "service_provider";
 function RoleAwareHomePage() {
   const [role, setRole] = useState<HomeRole>("guest");
   const [displayName, setDisplayName] = useState("Special Guest");
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    const loadHomeIdentity = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!active || !user) return;
+    const setGuestIdentity = () => {
+      if (!active) return;
+      setRole("guest");
+      setDisplayName("Special Guest");
+      setIsReady(true);
+    };
+
+    const loadHomeIdentity = async (user: { id: string } | null) => {
+      if (!user) {
+        setGuestIdentity();
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("user_profiles")
@@ -71,14 +81,31 @@ function RoleAwareHomePage() {
               ? "Service Provider"
               : "Special Guest"),
       );
+      setIsReady(true);
     };
 
-    loadHomeIdentity().catch(() => undefined);
+    const initialize = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      await loadHomeIdentity(user);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        loadHomeIdentity(session?.user ?? null).catch(setGuestIdentity);
+      },
+    );
+
+    initialize().catch(setGuestIdentity);
 
     return () => {
       active = false;
+      subscription.unsubscribe();
     };
   }, []);
+
+  if (!isReady) {
+    return <div className="min-h-screen" aria-busy="true" />;
+  }
 
   if (role === "guest") {
     return <HomePage displayName={displayName} />;
