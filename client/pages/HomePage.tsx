@@ -31,10 +31,11 @@ import {
   Wifi,
 } from "lucide-react";
 
-// DISABLED (2025-05-11): Original guest-focused HomePage
-// Kept intact for future restoration. See DISABLED_FEATURES.md
-// Use ProviderHomePage instead.
-const HomePage = () => {
+interface HomePageProps {
+  displayName?: string;
+}
+
+const HomePage = ({ displayName = "Special Guest" }: HomePageProps) => {
   const [timeOfDay, setTimeOfDay] = useState("");
   const [currentOffer, setCurrentOffer] = useState(0);
 
@@ -166,7 +167,7 @@ const HomePage = () => {
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
               {getGreeting()},
               <br />
-              <span className="text-shimmer">Special Guest</span>
+              <span className="text-shimmer">{displayName}</span>
             </h1>
 
             <p className="text-xl md:text-2xl mb-8 text-white/90 leading-relaxed">
@@ -472,6 +473,4 @@ const HomePage = () => {
   );
 };
 
-// Component kept but not exported - use ProviderHomePage instead
-// Uncomment below to restore guest-focused home page
-// export default HomePage;
+export default HomePage;

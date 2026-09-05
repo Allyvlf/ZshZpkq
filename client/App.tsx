@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import Header from "./components/layout/Header";
 import ServicesFooter from "./components/layout/ServicesFooter";
 import ServicesHomePage from "./pages/ServicesHomePage";
+import HomePage from "./pages/HomePage";
+import { supabase } from "./lib/supabase";
 import ServicesProfilePage from "./pages/ServicesProfilePage";
 import BookingPage from "./pages/BookingPage";
 import MenuPage from "./pages/MenuPage";
@@ -30,6 +33,60 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 import { Toaster } from "./components/ui/sonner";
 import "./global.css";
 
+type HomeRole = "guest" | "manager" | "service_provider";
+
+function RoleAwareHomePage() {
+  const [role, setRole] = useState<HomeRole>("guest");
+  const [displayName, setDisplayName] = useState("Special Guest");
+
+  useEffect(() => {
+    let active = true;
+
+    const loadHomeIdentity = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) return;
+
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("role, first_name, last_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!active) return;
+
+      const profileRole = profile?.role as HomeRole | undefined;
+      const nextRole = profileRole === "manager" || profileRole === "service_provider"
+        ? profileRole
+        : "guest";
+      const fullName = [profile?.first_name, profile?.last_name]
+        .filter((part): part is string => Boolean(part?.trim()))
+        .join(" ");
+
+      setRole(nextRole);
+      setDisplayName(
+        fullName ||
+          (nextRole === "manager"
+            ? "Manager"
+            : nextRole === "service_provider"
+              ? "Service Provider"
+              : "Special Guest"),
+      );
+    };
+
+    loadHomeIdentity().catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (role === "guest") {
+    return <HomePage displayName={displayName} />;
+  }
+
+  return <ServicesHomePage role={role} displayName={displayName} />;
+}
+
 function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -38,7 +95,7 @@ function App() {
           <Header />
           <main className="flex-1">
             <Routes>
-              <Route path="/" element={<ServicesHomePage />} />
+              <Route path="/" element={<RoleAwareHomePage />} />
               <Route path="/book" element={<BookingPage />} />
               <Route path="/menu" element={<MenuPage />} />
               <Route path="/profile" element={<ServicesProfilePage />} />

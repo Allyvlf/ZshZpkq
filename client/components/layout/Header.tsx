@@ -141,9 +141,7 @@ const Header = () => {
     }
   };
 
-  // DISABLED (2025-05-11): Stay, Dine, Experience sections
-  // These are kept intact for future restoration. See DISABLED_FEATURES.md for full details.
-  // To re-enable, uncomment the guestNavItems_disabled object and replace the empty array.
+  // Stay and Experience remain defined for future navigation use; Dine is currently visible.
   const guestNavItems_disabled = [
     {
       title: "Stay",
@@ -153,12 +151,6 @@ const Header = () => {
           href: "/book",
           icon: Hotel,
           description: "Luxury accommodations await",
-        },
-        {
-          title: "Special Offers",
-          href: "/offers",
-          icon: Crown,
-          description: "Exclusive deals for special guests",
         },
         {
           title: "Spa & Wellness",
@@ -184,10 +176,10 @@ const Header = () => {
           description: "Interactive dining experience",
         },
         {
-          title: "Room Service",
-          href: "/room-service",
-          icon: Bell,
-          description: "24/7 luxury dining",
+          title: "Special Offers",
+          href: "/offers",
+          icon: Crown,
+          description: "Exclusive deals for special guests",
         },
         {
           title: "Events & Banquets",
@@ -227,7 +219,7 @@ const Header = () => {
       ],
     },
   ];
-  const guestNavItems = [];
+  const guestNavItems = [guestNavItems_disabled[1]];
 
   const staffNavItems = [
     {
