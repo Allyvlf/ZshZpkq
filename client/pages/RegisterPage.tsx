@@ -186,6 +186,7 @@ const RegisterPage: React.FC = () => {
         profileData.service_type = formData.serviceType;
         profileData.service_category = formData.serviceCategory;
         profileData.menu_access_role = formData.menuAccessRole;
+        profileData.menu_access_approved = formData.menuAccessRole !== "none";
       }
 
       // Try to insert the profile, or update if it already exists
@@ -238,6 +239,7 @@ const RegisterPage: React.FC = () => {
               role: "guest",
               serviceType: "",
               serviceCategory: "",
+              menuAccessRole: "none",
             }))
           }
           className={`p-6 rounded-lg border-2 transition-all ${
@@ -265,6 +267,7 @@ const RegisterPage: React.FC = () => {
               role: "manager",
               serviceType: "",
               serviceCategory: "",
+              menuAccessRole: "none",
             }))
           }
           className={`p-6 rounded-lg border-2 transition-all ${
