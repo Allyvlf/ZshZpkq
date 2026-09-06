@@ -257,12 +257,9 @@ const MenuManagementPage = () => {
   };
 
   const approveProvider = async (userId: string) => {
-    const { error } = await supabase
-      .from("user_profiles")
-      .update({ menu_access_approved: true })
-      .eq("user_id", userId)
-      .eq("role", "service_provider")
-      .in("menu_access_role", ["chef", "food_beverage_manager"]);
+    const { error } = await supabase.rpc("approve_menu_access", {
+      target_user_id: userId,
+    });
 
     if (!error) {
       setPendingProviders((current) => current.filter((provider) => provider.user_id !== userId));
