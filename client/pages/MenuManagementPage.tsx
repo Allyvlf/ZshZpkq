@@ -38,9 +38,20 @@ const emptyForm = {
 
 type FormState = typeof emptyForm;
 
+type PendingMenuProvider = {
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  service_type: string;
+  menu_access_role: "chef" | "food_beverage_manager";
+};
+
 const MenuManagementPage = () => {
   const navigate = useNavigate();
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [isManager, setIsManager] = useState(false);
+  const [pendingProviders, setPendingProviders] = useState<PendingMenuProvider[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,12 +72,24 @@ const MenuManagementPage = () => {
         .maybeSingle();
 
       const cachedRole = getCachedHomeIdentity()?.role;
-      const canManage = profile?.role === "manager" ||
+      const manager = profile?.role === "manager";
+      const canManage = manager ||
         (profile?.role === "service_provider" &&
           profile.menu_access_approved === true &&
           (profile.menu_access_role === "chef" || profile.menu_access_role === "food_beverage_manager")) ||
         (!profile?.role && cachedRole === "manager");
+      setIsManager(manager);
       setAuthorized(canManage);
+      if (manager) {
+        const { data: providers } = await supabase
+          .from("user_profiles")
+          .select("user_id, email, first_name, last_name, service_type, menu_access_role")
+          .eq("role", "service_provider")
+          .eq("menu_access_approved", false)
+          .in("menu_access_role", ["chef", "food_beverage_manager"])
+          .order("created_at", { ascending: true });
+        setPendingProviders((providers || []) as PendingMenuProvider[]);
+      }
       if (canManage) {
         const localItems = getMenuItems();
         const { data: databaseItems } = await supabase
@@ -233,6 +256,19 @@ const MenuManagementPage = () => {
     resetForm();
   };
 
+  const approveProvider = async (userId: string) => {
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ menu_access_approved: true })
+      .eq("user_id", userId)
+      .eq("role", "service_provider")
+      .in("menu_access_role", ["chef", "food_beverage_manager"]);
+
+    if (!error) {
+      setPendingProviders((current) => current.filter((provider) => provider.user_id !== userId));
+    }
+  };
+
   const toggleTrending = async (id: string) => {
     const item = items.find((entry) => entry.id === id);
     const nextItems = items.map((entry) => entry.id === id ? { ...entry, trending: !entry.trending } : entry);
@@ -282,6 +318,33 @@ const MenuManagementPage = () => {
           </div>
           <Button variant="outline" onClick={() => navigate("/menu")}>View Guest Menu</Button>
         </div>
+
+        {isManager && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Menu Access Approvals</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Review culinary staff before granting menu modification access.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingProviders.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pending culinary access requests.</p>
+              ) : (
+                pendingProviders.map((provider) => (
+                  <div key={provider.user_id} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-semibold">{[provider.first_name, provider.last_name].filter(Boolean).join(" ") || provider.email}</p>
+                      <p className="text-sm text-muted-foreground">{provider.email} · {provider.service_type || "Food service"}</p>
+                      <Badge variant="outline" className="mt-2">{provider.menu_access_role === "chef" ? "Chef / Culinary Staff" : "Food & Beverage Manager"}</Badge>
+                    </div>
+                    <Button type="button" onClick={() => approveProvider(provider.user_id)}>Approve Menu Access</Button>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
