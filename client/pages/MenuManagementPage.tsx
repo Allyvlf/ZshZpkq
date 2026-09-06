@@ -8,7 +8,7 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import { supabase } from "../lib/supabase";
-import { getMenuItems, menuItemFromDatabaseRow, MenuCategory, MenuItem, saveMenuItems } from "../lib/menuData";
+import { menuItemFromDatabaseRow, MenuCategory, MenuItem } from "../lib/menuData";
 import { getCachedHomeIdentity } from "../lib/homeIdentity";
 import { useFileUpload } from "../hooks/useFileUpload";
 
@@ -92,13 +92,11 @@ const MenuManagementPage = () => {
         setPendingProviders((providers || []) as PendingMenuProvider[]);
       }
       if (canManage) {
-        const localItems = getMenuItems();
         const { data: databaseItems } = await supabase
           .from("menu_items")
           .select("*")
           .order("created_at", { ascending: true });
-        const savedItems = (databaseItems || []).map(menuItemFromDatabaseRow);
-        setItems([...localItems, ...savedItems]);
+        setItems((databaseItems || []).map(menuItemFromDatabaseRow));
       }
     };
 
@@ -209,12 +207,6 @@ const MenuManagementPage = () => {
       trending: editingId ? items.find((item) => item.id === editingId)?.trending ?? false : false,
     };
 
-    const nextItems = editingId
-      ? items.map((item) => item.id === editingId ? nextItem : item)
-      : [...items, nextItem];
-
-    setItems(nextItems);
-
     const databasePayload = {
       name: nextItem.name,
       short_description: nextItem.description,
@@ -252,14 +244,16 @@ const MenuManagementPage = () => {
       : supabase.from("menu_items").insert(databasePayload).select().single();
     const { data: savedDatabaseItem, error: databaseError } = await databaseQuery;
 
-    if (databaseError) {
+    if (databaseError || !savedDatabaseItem) {
       console.error("Unable to save menu item to Supabase", databaseError);
-      if (!nextItem.databaseId) saveMenuItems(nextItems);
-    } else if (savedDatabaseItem) {
-      const savedItem = menuItemFromDatabaseRow(savedDatabaseItem);
-      setItems((current) => current.map((item) => item.id === nextItem.id ? savedItem : item));
+      setIsSaving(false);
+      return;
     }
 
+    const savedItem = menuItemFromDatabaseRow(savedDatabaseItem);
+    setItems((current) => editingId
+      ? current.map((item) => item.id === editingId ? savedItem : item)
+      : [...current, savedItem]);
     setIsSaving(false);
     resetForm();
   };
@@ -276,36 +270,45 @@ const MenuManagementPage = () => {
 
   const toggleTrending = async (id: string) => {
     const item = items.find((entry) => entry.id === id);
-    const nextItems = items.map((entry) => entry.id === id ? { ...entry, trending: !entry.trending } : entry);
-    setItems(nextItems);
-    if (item?.databaseId) {
-      await supabase.from("menu_items").update({ is_trending: !item.trending }).eq("id", item.databaseId);
-    } else {
-      saveMenuItems(nextItems);
+    if (!item?.databaseId) return;
+
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ is_trending: !item.trending })
+      .eq("id", item.databaseId);
+
+    if (!error) {
+      setItems((current) => current.map((entry) => entry.id === id ? { ...entry, trending: !item.trending } : entry));
     }
   };
 
   const toggleVisibility = async (id: string) => {
     const item = items.find((entry) => entry.id === id);
-    const nextItems = items.map((entry) => entry.id === id ? { ...entry, approved: !entry.approved } : entry);
-    setItems(nextItems);
-    if (item?.databaseId) {
-      await supabase.from("menu_items").update({ is_published: !item.approved }).eq("id", item.databaseId);
-    } else {
-      saveMenuItems(nextItems);
+    if (!item?.databaseId) return;
+
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ is_published: !item.approved })
+      .eq("id", item.databaseId);
+
+    if (!error) {
+      setItems((current) => current.map((entry) => entry.id === id ? { ...entry, approved: !item.approved } : entry));
     }
   };
 
   const removeItem = async (id: string) => {
     const item = items.find((entry) => entry.id === id);
-    const nextItems = items.filter((entry) => entry.id !== id);
-    setItems(nextItems);
-    if (item?.databaseId) {
-      await supabase.from("menu_items").delete().eq("id", item.databaseId);
-    } else {
-      saveMenuItems(nextItems);
+    if (!item?.databaseId) return;
+
+    const { error } = await supabase
+      .from("menu_items")
+      .delete()
+      .eq("id", item.databaseId);
+
+    if (!error) {
+      setItems((current) => current.filter((entry) => entry.id !== id));
+      if (editingId === id) resetForm();
     }
-    if (editingId === id) resetForm();
   };
 
   return (

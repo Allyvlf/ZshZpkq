@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import CheckoutModal from "../components/checkout/CheckoutModal";
-import { getMenuItems, menuItemFromDatabaseRow } from "../lib/menuData";
+import { menuItemFromDatabaseRow, MenuItem } from "../lib/menuData";
 import { supabase } from "../lib/supabase";
 import {
   Card,
@@ -80,23 +80,9 @@ const MenuPage = () => {
     { id: "special", name: "Special Offers", icon: Crown },
   ];
 
-  const getVisibleLocalItems = () => {
-    const seen = new Set<string>();
-    return getMenuItems().filter((item) => {
-      if (!item.approved) return false;
-      const key = item.databaseId || item.name.trim().toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-
-  const [menuItems, setMenuItems] = useState(getVisibleLocalItems);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   useEffect(() => {
-    const refreshMenu = () => setMenuItems(getVisibleLocalItems());
-    window.addEventListener("storage", refreshMenu);
-
     supabase
       .from("menu_items")
       .select("*")
@@ -104,15 +90,9 @@ const MenuPage = () => {
       .order("created_at", { ascending: true })
       .then(({ data }) => {
         if (!data) return;
-        const databaseItems = data.map(menuItemFromDatabaseRow);
-        const databaseNames = new Set(databaseItems.map((item) => item.name.trim().toLowerCase()));
-        const localItems = getVisibleLocalItems().filter(
-          (item) => !databaseNames.has(item.name.trim().toLowerCase()),
-        );
-        setMenuItems([...localItems, ...databaseItems]);
+        setMenuItems(data.map(menuItemFromDatabaseRow));
       });
 
-    return () => window.removeEventListener("storage", refreshMenu);
   }, []);
 
   const filteredItems = menuItems.filter((item) => {

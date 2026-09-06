@@ -149,8 +149,6 @@ export const defaultMenuItems: MenuItem[] = [
   },
 ];
 
-const MENU_STORAGE_KEY = "sheraton-menu-items";
-
 export const menuItemFromDatabaseRow = (row: any): MenuItem => ({
   id: row.id,
   databaseId: row.id,
@@ -180,16 +178,3 @@ export const menuItemFromDatabaseRow = (row: any): MenuItem => ({
   statuses: row.status_labels || [],
   approved: row.is_published !== false,
 });
-
-export const getMenuItems = (): MenuItem[] => {
-  try {
-    const saved = localStorage.getItem(MENU_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : defaultMenuItems;
-  } catch {
-    return defaultMenuItems;
-  }
-};
-
-export const saveMenuItems = (items: MenuItem[]) => {
-  localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(items));
-};
