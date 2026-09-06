@@ -214,10 +214,21 @@ const MenuManagementPage = () => {
     };
 
     const databaseQuery = nextItem.databaseId
-      ? supabase.from("menu_items").update(databasePayload).eq("id", nextItem.databaseId)
-      : supabase.from("menu_items").insert(databasePayload);
-    const { error: databaseError } = await databaseQuery;
-    if (databaseError) console.error("Unable to save menu item to Supabase", databaseError);
+      ? supabase
+          .from("menu_items")
+          .update(databasePayload)
+          .eq("id", nextItem.databaseId)
+          .select()
+          .single()
+      : supabase.from("menu_items").insert(databasePayload).select().single();
+    const { data: savedDatabaseItem, error: databaseError } = await databaseQuery;
+
+    if (databaseError) {
+      console.error("Unable to save menu item to Supabase", databaseError);
+    } else if (savedDatabaseItem) {
+      const savedItem = menuItemFromDatabaseRow(savedDatabaseItem);
+      setItems((current) => current.map((item) => item.id === nextItem.id ? savedItem : item));
+    }
 
     resetForm();
   };
