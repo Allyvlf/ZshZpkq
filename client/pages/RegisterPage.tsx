@@ -186,7 +186,7 @@ const RegisterPage: React.FC = () => {
         profileData.service_type = formData.serviceType;
         profileData.service_category = formData.serviceCategory;
         profileData.menu_access_role = formData.menuAccessRole;
-        profileData.menu_access_approved = formData.menuAccessRole !== "none";
+        profileData.menu_access_approved = false;
       }
 
       // Try to insert the profile, or update if it already exists
