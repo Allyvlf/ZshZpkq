@@ -55,6 +55,7 @@ const MenuManagementPage = () => {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { uploadFile, isUploading } = useFileUpload();
 
   useEffect(() => {
@@ -165,16 +166,22 @@ const MenuManagementPage = () => {
 
   const saveItem = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSaving) return;
+    setIsSaving(true);
     const price = Number(form.price);
     const originalPrice = Number(form.originalPrice) || price;
     const availability = Number(form.availability);
     const maxAvailability = Number(form.maxAvailability);
 
-    if (!form.name.trim() || !form.description.trim() || !price || maxAvailability < 1) return;
+    if (!form.name.trim() || !form.description.trim() || !price || maxAvailability < 1) {
+      setIsSaving(false);
+      return;
+    }
 
+    const existingItem = editingId ? items.find((item) => item.id === editingId) : undefined;
     const nextItem: MenuItem = {
       id: editingId || `${form.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
-      databaseId: editingId ? items.find((item) => item.id === editingId)?.databaseId : undefined,
+      databaseId: existingItem?.databaseId,
       name: form.name.trim(),
       description: form.description.trim(),
       description_full: form.description_full.trim() || form.description.trim(),
@@ -207,7 +214,6 @@ const MenuManagementPage = () => {
       : [...items, nextItem];
 
     setItems(nextItems);
-    saveMenuItems(nextItems);
 
     const databasePayload = {
       name: nextItem.name,
@@ -248,11 +254,13 @@ const MenuManagementPage = () => {
 
     if (databaseError) {
       console.error("Unable to save menu item to Supabase", databaseError);
+      if (!nextItem.databaseId) saveMenuItems(nextItems);
     } else if (savedDatabaseItem) {
       const savedItem = menuItemFromDatabaseRow(savedDatabaseItem);
       setItems((current) => current.map((item) => item.id === nextItem.id ? savedItem : item));
     }
 
+    setIsSaving(false);
     resetForm();
   };
 
@@ -270,9 +278,10 @@ const MenuManagementPage = () => {
     const item = items.find((entry) => entry.id === id);
     const nextItems = items.map((entry) => entry.id === id ? { ...entry, trending: !entry.trending } : entry);
     setItems(nextItems);
-    saveMenuItems(nextItems);
     if (item?.databaseId) {
       await supabase.from("menu_items").update({ is_trending: !item.trending }).eq("id", item.databaseId);
+    } else {
+      saveMenuItems(nextItems);
     }
   };
 
@@ -280,9 +289,10 @@ const MenuManagementPage = () => {
     const item = items.find((entry) => entry.id === id);
     const nextItems = items.map((entry) => entry.id === id ? { ...entry, approved: !entry.approved } : entry);
     setItems(nextItems);
-    saveMenuItems(nextItems);
     if (item?.databaseId) {
       await supabase.from("menu_items").update({ is_published: !item.approved }).eq("id", item.databaseId);
+    } else {
+      saveMenuItems(nextItems);
     }
   };
 
@@ -290,9 +300,10 @@ const MenuManagementPage = () => {
     const item = items.find((entry) => entry.id === id);
     const nextItems = items.filter((entry) => entry.id !== id);
     setItems(nextItems);
-    saveMenuItems(nextItems);
     if (item?.databaseId) {
       await supabase.from("menu_items").delete().eq("id", item.databaseId);
+    } else {
+      saveMenuItems(nextItems);
     }
     if (editingId === id) resetForm();
   };
@@ -371,7 +382,7 @@ const MenuManagementPage = () => {
               <div className="space-y-2"><Label htmlFor="statuses">Status labels</Label><Input id="statuses" placeholder="Available, Chef's Pick" value={form.statuses} onChange={(e) => updateField("statuses", e.target.value)} /></div>
               <div className="space-y-2"><Label htmlFor="special_offer">Promotion label</Label><Input id="special_offer" placeholder="20% off, Happy Hour" value={form.special_offer} onChange={(e) => updateField("special_offer", e.target.value)} /></div>
               <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={form.isSpecial} onChange={(e) => setForm((current) => ({ ...current, isSpecial: e.target.checked }))} /> Mark this dish as Special</label>
-              <div className="md:col-span-2 flex gap-3"><Button type="submit">{editingId ? "Save Changes" : "Publish Dish"}</Button>{editingId && <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>}</div>
+              <div className="md:col-span-2 flex gap-3"><Button type="submit" disabled={isSaving}>{isSaving ? "Saving..." : editingId ? "Save Changes" : "Publish Dish"}</Button>{editingId && <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>}</div>
             </form>
           </CardContent>
         </Card>

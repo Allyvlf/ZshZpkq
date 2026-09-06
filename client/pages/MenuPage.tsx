@@ -80,10 +80,21 @@ const MenuPage = () => {
     { id: "special", name: "Special Offers", icon: Crown },
   ];
 
-  const [menuItems, setMenuItems] = useState(() => getMenuItems().filter((item) => item.approved));
+  const getVisibleLocalItems = () => {
+    const seen = new Set<string>();
+    return getMenuItems().filter((item) => {
+      if (!item.approved) return false;
+      const key = item.databaseId || item.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const [menuItems, setMenuItems] = useState(getVisibleLocalItems);
 
   useEffect(() => {
-    const refreshMenu = () => setMenuItems(getMenuItems().filter((item) => item.approved));
+    const refreshMenu = () => setMenuItems(getVisibleLocalItems());
     window.addEventListener("storage", refreshMenu);
 
     supabase
@@ -94,7 +105,11 @@ const MenuPage = () => {
       .then(({ data }) => {
         if (!data) return;
         const databaseItems = data.map(menuItemFromDatabaseRow);
-        setMenuItems([...getMenuItems().filter((item) => item.approved), ...databaseItems]);
+        const databaseNames = new Set(databaseItems.map((item) => item.name.trim().toLowerCase()));
+        const localItems = getVisibleLocalItems().filter(
+          (item) => !databaseNames.has(item.name.trim().toLowerCase()),
+        );
+        setMenuItems([...localItems, ...databaseItems]);
       });
 
     return () => window.removeEventListener("storage", refreshMenu);
