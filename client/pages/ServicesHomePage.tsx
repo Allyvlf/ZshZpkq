@@ -25,7 +25,15 @@ import {
   Loader,
 } from "lucide-react";
 
-const ServicesHomePage = () => {
+interface ServicesHomePageProps {
+  role?: "manager" | "service_provider";
+  displayName?: string;
+}
+
+const ServicesHomePage = ({
+  role = "service_provider",
+  displayName = role === "manager" ? "Manager" : "Service Provider",
+}: ServicesHomePageProps) => {
   const [timeOfDay, setTimeOfDay] = useState("");
 
   useEffect(() => {
@@ -123,7 +131,7 @@ const ServicesHomePage = () => {
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
               {getGreeting()},
               <br />
-              <span className="text-shimmer">Service Provider</span>
+              <span className="text-shimmer">{displayName}</span>
             </h1>
 
             <p className="text-xl md:text-2xl mb-8 text-white/90 leading-relaxed">

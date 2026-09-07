@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import {
@@ -39,15 +39,25 @@ import {
 import { cn } from "../../lib/utils";
 import { supabase, Notification } from "../../lib/supabase";
 import { toast } from "../../hooks/use-toast";
+import {
+  cacheHomeIdentity,
+  clearCachedHomeIdentity,
+  getCachedHomeIdentity,
+} from "../../lib/homeIdentity";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [canManageMenu, setCanManageMenu] = useState(() => {
+    return getCachedHomeIdentity()?.role === "manager";
+  });
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const subscriptionRef = useRef<any>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Load notifications for current user
   useEffect(() => {
@@ -57,9 +67,38 @@ const Header = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || !isMounted) {
+          clearCachedHomeIdentity();
+          setCanManageMenu(false);
           setLoading(false);
           return;
         }
+
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role, first_name, last_name, menu_access_role, menu_access_approved")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        const cachedRole = getCachedHomeIdentity()?.role;
+        const role = profile?.role === "manager" || profile?.role === "service_provider"
+          ? profile.role
+          : cachedRole === "manager" || cachedRole === "service_provider"
+            ? cachedRole
+            : "guest";
+        const canManage = role === "manager" ||
+          (role === "service_provider" &&
+            profile?.menu_access_approved === true &&
+            (profile?.menu_access_role === "chef" || profile?.menu_access_role === "food_beverage_manager"));
+        setCanManageMenu(canManage);
+        const displayName = [profile?.first_name, profile?.last_name]
+          .filter((part): part is string => Boolean(part?.trim()))
+          .join(" ") ||
+          (role === "manager"
+            ? "Manager"
+            : role === "service_provider"
+              ? "Service Provider"
+              : "Special Guest");
+        cacheHomeIdentity({ role, displayName });
 
         const { data, error } = await supabase
           .from("notifications")
@@ -121,6 +160,27 @@ const Header = () => {
     };
   }, []);
 
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      toast({
+        title: "Unable to sign out",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAccountOpen(false);
+    subscriptionRef.current?.unsubscribe();
+    subscriptionRef.current = null;
+    clearCachedHomeIdentity();
+    setNotifications([]);
+    setUnreadCount(0);
+    navigate("/", { replace: true });
+  };
+
   const markAsRead = async (notificationId: string) => {
     try {
       const { error } = await supabase
@@ -141,9 +201,7 @@ const Header = () => {
     }
   };
 
-  // DISABLED (2025-05-11): Stay, Dine, Experience sections
-  // These are kept intact for future restoration. See DISABLED_FEATURES.md for full details.
-  // To re-enable, uncomment the guestNavItems_disabled object and replace the empty array.
+  // Stay and Experience remain defined for future navigation use; Dine is currently visible.
   const guestNavItems_disabled = [
     {
       title: "Stay",
@@ -153,12 +211,6 @@ const Header = () => {
           href: "/book",
           icon: Hotel,
           description: "Luxury accommodations await",
-        },
-        {
-          title: "Special Offers",
-          href: "/offers",
-          icon: Crown,
-          description: "Exclusive deals for special guests",
         },
         {
           title: "Spa & Wellness",
@@ -184,10 +236,10 @@ const Header = () => {
           description: "Interactive dining experience",
         },
         {
-          title: "Room Service",
-          href: "/room-service",
-          icon: Bell,
-          description: "24/7 luxury dining",
+          title: "Special Offers",
+          href: "/offers",
+          icon: Crown,
+          description: "Exclusive deals for special guests",
         },
         {
           title: "Events & Banquets",
@@ -227,7 +279,7 @@ const Header = () => {
       ],
     },
   ];
-  const guestNavItems = [];
+  const guestNavItems = [guestNavItems_disabled[1]];
 
   const staffNavItems = [
     {
@@ -250,6 +302,12 @@ const Header = () => {
           href: "/tasks/chat",
           icon: Bell,
           description: "Communicate about tasks",
+        },
+        {
+          title: "Menu Management",
+          href: "/staff/menu",
+          icon: Utensils,
+          description: "Create and publish digital menu dishes",
         },
       ],
     },
@@ -351,7 +409,9 @@ const Header = () => {
                           </Link>
                         </NavigationMenuLink>
                       </li>
-                      {section.items.map((item) => (
+                      {section.items
+                        .filter((item) => item.title !== "Menu Management" || canManageMenu)
+                        .map((item) => (
                         <li key={item.title}>
                           <NavigationMenuLink asChild>
                             <Link
@@ -412,6 +472,7 @@ const Header = () => {
             <nav className="flex flex-col space-y-3 mt-6">
               {[...guestNavItems, ...staffNavItems]
                 .flatMap((section) => section.items)
+                .filter((item) => item.title !== "Menu Management" || canManageMenu)
                 .map((item) => (
                   <Link
                     key={item.href}
@@ -532,27 +593,55 @@ const Header = () => {
                 Staff Portal
               </Button>
             </Link>
+            {canManageMenu && (
+              <Link to="/staff/menu">
+                <Button variant="ghost" size="sm" className="text-xs">
+                  <Utensils className="h-4 w-4 mr-1" />
+                  Menu Management
+                </Button>
+              </Link>
+            )}
             <Link to="/register">
               <Button variant="ghost" size="sm" className="text-xs">
                 Join Special
               </Button>
             </Link>
-            <Link to="/profile">
-              <Button
-                variant="outline"
-                size="sm"
-                className="sheraton-gradient text-white border-0"
-              >
-                <User className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">My Account</span>
-                <Badge
-                  variant="secondary"
-                  className="ml-2 bg-white/20 text-white"
+            <Popover open={isAccountOpen} onOpenChange={setIsAccountOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="sheraton-gradient text-white border-0"
                 >
-                  1,250 pts
-                </Badge>
-              </Button>
-            </Link>
+                  <User className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">My Account</span>
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 bg-white/20 text-white"
+                  >
+                    1,250 pts
+                  </Badge>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52" align="end">
+                <div className="space-y-2">
+                  <Link
+                    to="/profile"
+                    className="block rounded-md px-3 py-2 text-sm hover:bg-accent"
+                    onClick={() => setIsAccountOpen(false)}
+                  >
+                    My Account
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start px-3 text-sm"
+                    onClick={handleSignOut}
+                  >
+                    Sign out
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </nav>
         </div>
       </div>

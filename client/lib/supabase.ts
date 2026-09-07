@@ -20,6 +20,8 @@ export interface UserProfile {
   room_number?: string
   service_type?: string // for service providers
   service_category?: string // internal or external
+  menu_access_role?: 'none' | 'chef' | 'food_beverage_manager'
+  menu_access_approved?: boolean
   created_at: string
   updated_at: string
 }

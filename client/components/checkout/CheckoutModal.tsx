@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,9 @@ import {
   Car,
   Building,
   Wallet,
+  Truck,
+  ShoppingBag,
+  Smartphone,
   Shield,
   ArrowLeft,
   ArrowRight,
@@ -43,6 +46,7 @@ import {
   X,
   ShoppingCart,
 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 interface MenuItem {
   id: string;
@@ -72,25 +76,27 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [step, setStep] = useState<
     "cart" | "details" | "payment" | "confirmation"
   >("cart");
-  const [orderType, setOrderType] = useState<"dine-in" | "room-service">(
-    "dine-in",
-  );
+  const [orderType, setOrderType] = useState<
+    "delivery" | "take-away" | "dine-in" | "room-service"
+  >("dine-in");
   const [customerInfo, setCustomerInfo] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
     roomNumber: "",
+    deliveryAddress: "",
     specialRequests: "",
   });
   const [paymentMethod, setPaymentMethod] = useState<
-    "card" | "room-charge" | "cash"
+    "card" | "room-charge" | "cash" | "mobile-money"
   >("card");
   const [paymentDetails, setPaymentDetails] = useState({
     cardNumber: "",
     expiryDate: "",
     cvv: "",
     cardName: "",
+    mobileMoneyNumber: "",
   });
   const [loyaltyPoints, setLoyaltyPoints] = useState(1250);
   const [usePoints, setUsePoints] = useState(false);
@@ -100,6 +106,33 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [estimatedTime, setEstimatedTime] = useState("25-30 minutes");
   const [orderNumber, setOrderNumber] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("first_name, last_name, email, phone, room_number")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      setCustomerInfo((current) => ({
+        ...current,
+        firstName: profile?.first_name || current.firstName,
+        lastName: profile?.last_name || current.lastName,
+        email: profile?.email || user.email || current.email,
+        phone: profile?.phone || current.phone,
+        roomNumber: profile?.room_number || current.roomNumber,
+      }));
+    };
+
+    loadProfile().catch((error) => console.error("Unable to load checkout profile", error));
+  }, [isOpen]);
 
   const getCartItems = () => {
     return Object.entries(cart).map(([itemId, quantity]) => {
@@ -120,7 +153,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const getServiceFee = () => {
-    return orderType === "room-service" ? 5 : 0;
+    return orderType === "room-service" ? 5 : orderType === "delivery" ? 8 : 0;
   };
 
   const getPointsDiscount = () => {
@@ -147,13 +180,71 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handlePlaceOrder = async () => {
     setIsProcessing(true);
-    
-    // Simulate order processing
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    
-    // Generate order number
-    const orderNum = `SH${Date.now().toString().slice(-6)}`;
-    setOrderNumber(orderNum);
+    setCheckoutError("");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setCheckoutError("Please sign in before placing an order.");
+      setIsProcessing(false);
+      return;
+    }
+
+    const orderNumberValue = `SH${Date.now().toString().slice(-8)}`;
+    const { data: order, error: orderError } = await supabase
+      .from("menu_orders")
+      .insert({
+        order_number: orderNumberValue,
+        user_id: user.id,
+        order_type: orderType,
+        status: "pending",
+        payment_method: paymentMethod,
+        payment_status: "pending",
+        first_name: customerInfo.firstName.trim(),
+        last_name: customerInfo.lastName.trim(),
+        email: customerInfo.email.trim(),
+        phone: customerInfo.phone.trim(),
+        room_number: customerInfo.roomNumber.trim() || null,
+        delivery_address: customerInfo.deliveryAddress.trim() || null,
+        special_requests: customerInfo.specialRequests.trim() || null,
+        subtotal: getSubtotal(),
+        tax_amount: getTax(),
+        service_fee: getServiceFee(),
+        tip_amount: tipAmount,
+        points_discount: getPointsDiscount(),
+        total_amount: getFinalTotal(),
+      })
+      .select("id, order_number")
+      .single();
+
+    if (orderError || !order) {
+      console.error("Unable to create menu order", orderError);
+      setCheckoutError("We could not place your order. Please try again.");
+      setIsProcessing(false);
+      return;
+    }
+
+    const { error: itemsError } = await supabase.from("menu_order_items").insert(
+      getCartItems()
+        .filter(({ item }) => item)
+        .map(({ item, quantity }) => ({
+          order_id: order.id,
+          menu_item_id: item!.id,
+          item_name: item!.name,
+          unit_price: item!.price,
+          quantity,
+          line_total: item!.price * quantity,
+        })),
+    );
+
+    if (itemsError) {
+      console.error("Unable to save menu order items", itemsError);
+      await supabase.from("menu_orders").delete().eq("id", order.id);
+      setCheckoutError("We could not save the order items. Please try again.");
+      setIsProcessing(false);
+      return;
+    }
+
+    setOrderNumber(order.order_number);
     setOrderConfirmed(true);
     setIsProcessing(false);
     setStep("confirmation");
@@ -161,6 +252,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const resetModal = () => {
     setStep("cart");
+    setOrderType("dine-in");
+    setPaymentMethod("card");
     setOrderConfirmed(false);
     setIsProcessing(false);
     setCustomerInfo({
@@ -169,6 +262,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       email: "",
       phone: "",
       roomNumber: "",
+      deliveryAddress: "",
       specialRequests: "",
     });
     setPaymentDetails({
@@ -176,10 +270,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       expiryDate: "",
       cvv: "",
       cardName: "",
+      mobileMoneyNumber: "",
     });
     setUsePoints(false);
     setTipAmount(0);
     setTipPercentage(18);
+    setCheckoutError("");
   };
 
   const handleClose = () => {
@@ -191,30 +287,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Your Order</h3>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant={orderType === "dine-in" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setOrderType("dine-in")}
-            className={
-              orderType === "dine-in" ? "bg-sheraton-gold text-sheraton-navy" : ""
-            }
-          >
-            <Utensils className="h-4 w-4 mr-2" />
-            Dine In
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Button variant={orderType === "delivery" ? "default" : "outline"} size="sm" onClick={() => setOrderType("delivery")} className={orderType === "delivery" ? "bg-sheraton-gold text-sheraton-navy" : ""}>
+            <Truck className="h-4 w-4" /> Delivery
           </Button>
-          <Button
-            variant={orderType === "room-service" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setOrderType("room-service")}
-            className={
-              orderType === "room-service"
-                ? "bg-sheraton-gold text-sheraton-navy"
-                : ""
-            }
-          >
-            <Building className="h-4 w-4 mr-2" />
-            Room Service
+          <Button variant={orderType === "dine-in" ? "default" : "outline"} size="sm" onClick={() => setOrderType("dine-in")} className={orderType === "dine-in" ? "bg-sheraton-gold text-sheraton-navy" : ""}>
+            <Utensils className="h-4 w-4" /> Dine In
+          </Button>
+          <Button variant={orderType === "take-away" ? "default" : "outline"} size="sm" onClick={() => setOrderType("take-away")} className={orderType === "take-away" ? "bg-sheraton-gold text-sheraton-navy" : ""}>
+            <ShoppingBag className="h-4 w-4" /> Take Away
+          </Button>
+          <Button variant={orderType === "room-service" ? "default" : "outline"} size="sm" onClick={() => setOrderType("room-service")} className={orderType === "room-service" ? "bg-sheraton-gold text-sheraton-navy" : ""}>
+            <Building className="h-4 w-4" /> Room Service
           </Button>
         </div>
       </div>
@@ -312,7 +396,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Order Details</h3>
         <Badge className="bg-sheraton-gold text-sheraton-navy">
-          {orderType === "dine-in" ? "Dine In" : "Room Service"}
+          {{
+            delivery: "Delivery",
+            "take-away": "Take Away",
+            "dine-in": "Dine In",
+            "room-service": "Room Service",
+          }[orderType]}
         </Badge>
       </div>
 
@@ -366,18 +455,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         />
       </div>
 
-      {orderType === "room-service" && (
+      {(orderType === "room-service" || orderType === "delivery") && (
         <div>
-          <label className="block text-sm font-medium mb-2">Room Number *</label>
+          <label className="block text-sm font-medium mb-2">
+            {orderType === "room-service" ? "Room Number *" : "Delivery Address *"}
+          </label>
           <Input
-            value={customerInfo.roomNumber}
-            onChange={(e) =>
-              setCustomerInfo((prev) => ({
-                ...prev,
-                roomNumber: e.target.value,
-              }))
-            }
-            placeholder="Enter room number"
+            value={orderType === "room-service" ? customerInfo.roomNumber : customerInfo.deliveryAddress}
+            onChange={(e) => setCustomerInfo((prev) => orderType === "room-service"
+              ? { ...prev, roomNumber: e.target.value }
+              : { ...prev, deliveryAddress: e.target.value })}
+            placeholder={orderType === "room-service" ? "Enter room number" : "Enter delivery address"}
           />
         </div>
       )}
@@ -416,7 +504,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             !customerInfo.lastName ||
             !customerInfo.email ||
             !customerInfo.phone ||
-            (orderType === "room-service" && !customerInfo.roomNumber)
+            (orderType === "room-service" && !customerInfo.roomNumber) ||
+            (orderType === "delivery" && !customerInfo.deliveryAddress)
           }
         >
           Continue to Payment
@@ -498,7 +587,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       {/* Payment Method */}
       <div className="space-y-3">
         <label className="block text-sm font-medium">Payment Method</label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Button
             variant={paymentMethod === "card" ? "default" : "outline"}
             onClick={() => setPaymentMethod("card")}
@@ -522,6 +611,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           >
             <Building className="h-4 w-4 mr-2" />
             Room
+          </Button>
+          <Button
+            variant={paymentMethod === "mobile-money" ? "default" : "outline"}
+            onClick={() => setPaymentMethod("mobile-money")}
+            className={paymentMethod === "mobile-money" ? "bg-sheraton-gold text-sheraton-navy" : ""}
+          >
+            <Smartphone className="h-4 w-4 mr-2" /> Mobile Money
           </Button>
           <Button
             variant={paymentMethod === "cash" ? "default" : "outline"}
@@ -619,6 +715,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
       )}
 
+      {paymentMethod === "mobile-money" && (
+        <div className="space-y-3 rounded-lg bg-purple-50 p-4">
+          <label className="block text-sm font-medium">Mobile Money Number</label>
+          <Input
+            type="tel"
+            inputMode="tel"
+            value={paymentDetails.mobileMoneyNumber}
+            onChange={(e) => setPaymentDetails((prev) => ({ ...prev, mobileMoneyNumber: e.target.value }))}
+            placeholder="Enter mobile money number"
+            autoComplete="tel"
+          />
+          <p className="text-sm text-purple-700">You will receive a secure payment prompt from your mobile money provider.</p>
+        </div>
+      )}
+
       {paymentMethod === "cash" && (
         <div className="p-4 bg-green-50 rounded-lg">
           <div className="flex items-center space-x-2 mb-2">
@@ -669,6 +780,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
       </div>
 
+      {checkoutError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{checkoutError}</p>}
+
       <div className="flex space-x-3">
         <Button
           variant="outline"
@@ -680,7 +793,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </Button>
         <Button
           onClick={handlePlaceOrder}
-          disabled={isProcessing}
+          disabled={isProcessing || (paymentMethod === "mobile-money" && !paymentDetails.mobileMoneyNumber.trim())}
           className="flex-1 bg-sheraton-gold hover:bg-sheraton-gold/90 text-sheraton-navy"
         >
           {isProcessing ? (
@@ -733,12 +846,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       <div className="space-y-3">
         <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
           <Clock className="h-4 w-4" />
-          <span>You'll receive updates via SMS and email</span>
+          <span>Your order has been recorded. Receipt notifications will be added later.</span>
         </div>
         {orderType === "room-service" && (
           <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
             <MapPin className="h-4 w-4" />
             <span>Delivering to Room {customerInfo.roomNumber}</span>
+          </div>
+        )}
+        {orderType === "delivery" && (
+          <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+            <MapPin className="h-4 w-4" />
+            <span>Delivering to {customerInfo.deliveryAddress}</span>
           </div>
         )}
       </div>

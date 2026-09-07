@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import CheckoutModal from "../components/checkout/CheckoutModal";
+import { menuItemFromDatabaseRow, MenuItem } from "../lib/menuData";
+import { supabase } from "../lib/supabase";
 import {
   Card,
   CardContent,
@@ -78,128 +80,20 @@ const MenuPage = () => {
     { id: "special", name: "Special Offers", icon: Crown },
   ];
 
-  const menuItems = [
-    {
-      id: "truffle-pasta",
-      name: "Truffle Mushroom Pasta",
-      description:
-        "Handmade fettuccine with wild mushrooms, black truffle shavings, and aged parmesan",
-      price: 34,
-      originalPrice: 42,
-      category: "mains",
-      image: "🍝",
-      cookTime: "15-20 min",
-      difficulty: "medium",
-      availability: 8,
-      maxAvailability: 12,
-      dietary: ["vegetarian"],
-      spiceLevel: 1,
-      popularity: 95,
-      origin: "Northern Italy",
-      calories: 580,
-      description_full:
-        "Our signature pasta features locally foraged wild mushrooms, premium black truffle from Périgord, and 24-month aged Parmigiano-Reggiano. The pasta is made fresh daily in our kitchen using traditional Italian techniques.",
-      chef_note:
-        "Chef Marco's personal favorite - a taste of authentic Italian countryside",
-      trending: true,
-      special_offer: "Limited time: 20% off",
-    },
-    {
-      id: "wagyu-steak",
-      name: "Wagyu Beef Tenderloin",
-      description:
-        "A5 Wagyu beef with roasted vegetables and red wine reduction",
-      price: 89,
-      originalPrice: 105,
-      category: "mains",
-      image: "🥩",
-      cookTime: "25-30 min",
-      difficulty: "high",
-      availability: 4,
-      maxAvailability: 6,
-      dietary: ["gluten-free"],
-      spiceLevel: 2,
-      popularity: 88,
-      origin: "Japan",
-      calories: 650,
-      description_full:
-        "Premium A5 Wagyu beef sourced directly from certified farms in Japan. Grilled to perfection and served with seasonal roasted vegetables and our signature red wine reduction made with French Bordeaux.",
-      chef_note: "Our most exclusive cut - limited daily availability",
-      trending: false,
-      special_offer: null,
-    },
-    {
-      id: "lobster-bisque",
-      name: "Maine Lobster Bisque",
-      description: "Creamy lobster soup with fresh herbs and cognac finish",
-      price: 18,
-      originalPrice: 18,
-      category: "appetizers",
-      image: "🦞",
-      cookTime: "5-8 min",
-      difficulty: "low",
-      availability: 15,
-      maxAvailability: 20,
-      dietary: ["gluten-free"],
-      spiceLevel: 1,
-      popularity: 92,
-      origin: "New England, USA",
-      calories: 320,
-      description_full:
-        "Rich and velvety soup made from fresh Maine lobster shells, cream, and aromatic vegetables. Finished with a splash of fine cognac and garnished with fresh chives.",
-      chef_note:
-        "A classic preparation that highlights the sweet lobster flavor",
-      trending: false,
-      special_offer: null,
-    },
-    {
-      id: "chocolate-souffle",
-      name: "Dark Chocolate Soufflé",
-      description:
-        "Warm chocolate soufflé with vanilla ice cream and berry coulis",
-      price: 16,
-      originalPrice: 20,
-      category: "desserts",
-      image: "🍫",
-      cookTime: "20-25 min",
-      difficulty: "high",
-      availability: 0,
-      maxAvailability: 8,
-      dietary: ["vegetarian"],
-      spiceLevel: 0,
-      popularity: 85,
-      origin: "France",
-      calories: 420,
-      description_full:
-        "Individual chocolate soufflé made with premium 70% Belgian dark chocolate. Served warm with house-made vanilla bean ice cream and mixed berry coulis.",
-      chef_note: "Please allow 25 minutes preparation time - worth the wait!",
-      trending: false,
-      special_offer: "Today only: 20% off",
-    },
-    {
-      id: "craft-cocktail",
-      name: "Sheraton Signature Martini",
-      description: "Premium gin with our house-made vermouth and garnishes",
-      price: 16,
-      originalPrice: 16,
-      category: "beverages",
-      image: "🍸",
-      cookTime: "3-5 min",
-      difficulty: "medium",
-      availability: 25,
-      maxAvailability: 30,
-      dietary: ["vegan", "gluten-free"],
-      spiceLevel: 0,
-      popularity: 78,
-      origin: "House Creation",
-      calories: 180,
-      description_full:
-        "Our bartender's signature creation featuring premium botanical gin, house-made dry vermouth infused with local herbs, and finished with our special garnish selection.",
-      chef_note: "Each martini is crafted to order with precision and care",
-      trending: true,
-      special_offer: "Happy Hour: Buy 2 get 1 free",
-    },
-  ];
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("menu_items")
+      .select("*")
+      .eq("is_published", true)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (!data) return;
+        setMenuItems(data.map(menuItemFromDatabaseRow));
+      });
+
+  }, []);
 
   const filteredItems = menuItems.filter((item) => {
     const matchesSearch =
@@ -271,6 +165,9 @@ const MenuPage = () => {
       return { status: "medium", color: "text-yellow-500", message: "Limited" };
     return { status: "good", color: "text-green-500", message: "Available" };
   };
+
+  const formatPrice = (amount: number, currency = "USD") =>
+    new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
 
   const getCurrentOffer = () => {
     const hour = currentTime.getHours();
@@ -450,11 +347,20 @@ const MenuPage = () => {
               {filteredItems.map((item) => {
                 const availability = getAvailabilityStatus(item);
                 const cartQuantity = cart[item.id] || 0;
+                const discountPercent = item.originalPrice > item.price
+                  ? Math.round((1 - item.price / item.originalPrice) * 100)
+                  : 0;
+                const customStatuses = item.statuses || [];
+                const statusLabels = availability.status === "out"
+                  ? ["Sold out", ...customStatuses.filter((status) => status.toLowerCase() !== "available" && status.toLowerCase() !== "sold out")]
+                  : customStatuses.length ? customStatuses : ["Available"];
 
                 return (
                   <Card
                     key={item.id}
-                    className="overflow-hidden hover:shadow-lg transition-shadow"
+                    className={`overflow-hidden hover:shadow-lg transition-shadow ${
+                      availability.status === "out" ? "opacity-80" : ""
+                    }`}
                   >
                     <CardContent className="p-0">
                       <div className="flex">
@@ -462,27 +368,38 @@ const MenuPage = () => {
                         <div className="flex-1 p-6">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-4">
-                              <div className="text-5xl">{item.image}</div>
+                              <div className="text-5xl" aria-hidden="true">{item.image}</div>
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
                                   <h3 className="text-xl font-bold text-sheraton-navy">
                                     {item.name}
                                   </h3>
-                                  {item.trending && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="bg-red-100 text-red-600"
-                                    >
-                                      <TrendingUp className="h-3 w-3 mr-1" />
-                                      Trending
-                                    </Badge>
-                                  )}
-                                  {item.special_offer && (
-                                    <Badge className="bg-sheraton-gold text-sheraton-navy">
-                                      <Gift className="h-3 w-3 mr-1" />
-                                      Special
-                                    </Badge>
-                                  )}
+                                  <div className="flex flex-wrap items-center gap-2 mt-2" aria-label={`${item.name} status`}>
+                                    {statusLabels.map((status) => (
+                                      <Badge
+                                        key={status}
+                                        variant={status.toLowerCase() === "sold out" ? "destructive" : "outline"}
+                                        className={status.toLowerCase() === "available" ? "border-green-600 text-green-700" : ""}
+                                      >
+                                        {status}
+                                      </Badge>
+                                    ))}
+                                    {item.trending && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="bg-red-100 text-red-600"
+                                      >
+                                        <TrendingUp className="h-3 w-3 mr-1" />
+                                        Trending
+                                      </Badge>
+                                    )}
+                                    {item.special_offer && (
+                                      <Badge className="bg-sheraton-gold text-sheraton-navy">
+                                        <Gift className="h-3 w-3 mr-1" />
+                                        Promotion
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="text-muted-foreground mb-2">
                                   {item.description}
@@ -507,17 +424,23 @@ const MenuPage = () => {
                             {/* Price and Availability */}
                             <div className="text-right">
                               <div className="flex items-center gap-2 mb-2">
-                                {item.originalPrice > item.price && (
-                                  <span className="text-sm text-muted-foreground line-through">
-                                    ${item.originalPrice}
+                                {discountPercent > 0 && (
+                                  <span className="text-sm text-muted-foreground line-through" aria-label={`Original price $${item.originalPrice}`}>
+                                    {formatPrice(item.originalPrice, item.currency)}
                                   </span>
                                 )}
-                                <span className="text-2xl font-bold text-sheraton-navy">
-                                  ${item.price}
+                                <span className="text-2xl font-bold text-sheraton-navy" aria-label={`Current price $${item.price}`}>
+                                  {formatPrice(item.price, item.currency)}
                                 </span>
+                                {discountPercent > 0 && (
+                                  <Badge className="bg-red-100 text-red-700">
+                                    {discountPercent}% off
+                                  </Badge>
+                                )}
                               </div>
                               <div
                                 className={`text-sm font-medium ${availability.color}`}
+                                aria-label={`Availability: ${availability.message}`}
                               >
                                 {availability.message}
                               </div>
@@ -541,6 +464,29 @@ const MenuPage = () => {
                               </div>
                             )}
                           </div>
+
+                          {/* Dish media */}
+                          {item.mediaUrl && (
+                            <div className="mb-4 flex flex-col items-center gap-2 rounded-lg border border-border/60 bg-white p-3">
+                              {item.mediaType === "video" ? (
+                                <video
+                                  src={item.mediaUrl}
+                                  controls
+                                  className="max-h-64 w-full max-w-xl rounded-md object-contain"
+                                  aria-label={`${item.name} video`}
+                                />
+                              ) : (
+                                <img
+                                  src={item.mediaUrl}
+                                  alt={`${item.name} dish`}
+                                  className="max-h-64 w-full max-w-xl rounded-md object-contain"
+                                />
+                              )}
+                              <Badge variant="outline" className="gap-1 text-xs">
+                                {item.mediaType === "video" ? "Video" : "Image"}
+                              </Badge>
+                            </div>
+                          )}
 
                           {/* Tags and Dietary Info */}
                           <div className="flex items-center gap-2 mb-4">
